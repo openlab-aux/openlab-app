@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:wifi_iot/wifi_iot.dart';
 import 'dart:io' show Platform;
 import 'package:retry/retry.dart';
+import 'package:wifi_iot/wifi_iot.dart';
 
 class OpenDoor extends StatefulWidget {
   @override
@@ -37,8 +37,19 @@ class _OpenDoorState extends State<OpenDoor> {
       if (Platform.isAndroid || Platform.isIOS) {
         await retry(() async {
           await WiFiForIoTPlugin.setEnabled(true, shouldOpenSettings: false);
-          await WiFiForIoTPlugin.connect("Labor 2.0",
-              password: "nerdhoehle2", security: NetworkSecurity.WPA);
+          print(await WiFiForIoTPlugin.isEnabled());
+          bool connected = await WiFiForIoTPlugin.connect(
+            "Labor 2.0",
+            password: "nerdhoehle2",
+            security: NetworkSecurity.WPA,
+            withInternet: false,
+            timeoutInSeconds: 10,
+            joinOnce: (Platform.isIOS) ? false : true,
+          );
+          print(await WiFiForIoTPlugin.isConnected());
+          await WiFiForIoTPlugin.forceWifiUsage(true);
+          print(await WiFiForIoTPlugin.isConnected());
+          print(await WiFiForIoTPlugin.getSSID());
         }, retryIf: (e) => WiFiForIoTPlugin.getSSID() != "Labor 2.0");
       }
     } catch (e) {
@@ -94,8 +105,11 @@ class _OpenDoorState extends State<OpenDoor> {
             ),
           ),
         ),
-        ElevatedButton(
-            onPressed: connectWifi, child: const Text("Mit Wifi verbinden")),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: ElevatedButton(
+              onPressed: connectWifi, child: const Text("Mit Wifi verbinden")),
+        ),
       ],
     );
   }

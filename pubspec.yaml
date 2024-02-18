@@ -37,11 +37,11 @@ dependencies:
   http: ^1.1.0
   flutter_secure_storage: ^9.0.0
   flutter_cors: ^1.2.0
-  wifi_iot: ^0.3.19
   pull_to_refresh: ^2.0.0
   duration_picker: ^1.1.1
   direct_select: ^2.0.0
   retry: ^3.1.2
+  wifi_iot: ^0.3.19
 
 dev_dependencies:
   flutter_test:
