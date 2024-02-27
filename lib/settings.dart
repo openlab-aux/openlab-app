@@ -27,7 +27,7 @@ class _SettingsState extends State<Settings> {
   void initValues() async {
     String u = await storage.read(key: "username") ?? "";
     String p = await storage.read(key: "password") ?? "";
-    String n = await storage.read(key: "nickname") ?? "";
+    String n = await storage.read(key: "nickname") ?? "ReplaceMe";
     setState(() {
       this.username = u;
       this.password = p;
@@ -43,8 +43,9 @@ class _SettingsState extends State<Settings> {
     return Form(
       child: Column(
         children: [
+          Text("Settings", style: Theme.of(context).textTheme.headlineMedium),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
             child: TextFormField(
               controller: usernameController,
               decoration: InputDecoration(

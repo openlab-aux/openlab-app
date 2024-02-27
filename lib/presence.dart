@@ -57,10 +57,10 @@ class Presence extends StatefulWidget {
 }
 
 class _PresenceState extends State<Presence> {
-  final String apiUrl = "http://localhost:8080";
+  final String apiUrl = "https://openlapp.lab.weltraumpflege.org";
   PresenceResponse? presence;
   ComingResponse? coming;
-  String nickname = "";
+  String nickname = "ReplaceMe";
   bool loggedIn = false;
   bool planingToCome = false;
   Duration whenICome = Duration(minutes: 30);
@@ -86,7 +86,7 @@ class _PresenceState extends State<Presence> {
     try {
       http.Response response = await http.get(Uri.parse(apiUrl + "/presence"));
       if (response.statusCode == 200) {
-        nickname = await storage.read(key: "nickname") ?? "";
+        nickname = await storage.read(key: "nickname") ?? "ReplaceMe";
         setState(() {
           Map<String, dynamic> body =
               jsonDecode(response.body) as Map<String, dynamic>;
@@ -110,7 +110,7 @@ class _PresenceState extends State<Presence> {
     try {
       http.Response response = await http.get(Uri.parse(apiUrl + "/coming"));
       if (response.statusCode == 200) {
-        nickname = await storage.read(key: "nickname") ?? "";
+        nickname = await storage.read(key: "nickname") ?? "ReplaceMe";
         setState(() {
           Map<String, dynamic> body =
               jsonDecode(response.body) as Map<String, dynamic>;
@@ -314,6 +314,8 @@ class _PresenceState extends State<Presence> {
         header: WaterDropHeader(),
         child: Column(
           children: [
+            Text("Aktuell im Lab",
+                style: Theme.of(context).textTheme.headlineMedium),
             Expanded(
               flex: 1,
               child: Scrollbar(
@@ -331,6 +333,8 @@ class _PresenceState extends State<Presence> {
               ),
             ),
             Divider(),
+            Text("Hat vor zu kommen",
+                style: Theme.of(context).textTheme.headlineMedium),
             Expanded(
               flex: 1,
               child: Scrollbar(

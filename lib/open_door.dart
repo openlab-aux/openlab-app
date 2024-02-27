@@ -57,10 +57,19 @@ class _OpenDoorState extends State<OpenDoor> {
     }
   }
 
+  void checkCreds() {
+    if (username.isEmpty && password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              "Bitte gib erst in den Einstellungen deinen Username und dein Passwort ein!")));
+    }
+  }
+
   void outerDoor() async {
+    checkCreds();
     String basicAuth =
         'Basic ' + base64Encode(utf8.encode('$username:$password'));
-    await http.post(Uri.parse("http://172.16.0.248:3000/open/outerdoor"),
+    await http.post(Uri.parse("http://airlock.lab:3000/open/outerdoor"),
         headers: {
           'authorization': basicAuth,
           'Access-Control-Allow-Origin': '*'
@@ -68,9 +77,10 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   void innerDoor() async {
+    checkCreds();
     String basicAuth =
         'Basic ' + base64Encode(utf8.encode('$username:$password'));
-    await http.post(Uri.parse("http://172.16.0.248:3000/open/innerdoor"),
+    await http.post(Uri.parse("http://airlock.lab:3000/open/innerdoor"),
         headers: {
           'authorization': basicAuth,
           'Access-Control-Allow-Origin': '*'

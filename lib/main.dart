@@ -68,7 +68,7 @@ class _MainWidgetState extends State<MainWidget> {
     }
 
     return Scaffold(
-        body: widget,
+        body: SafeArea(child: widget),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: (value) {
