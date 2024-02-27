@@ -90,7 +90,10 @@ class _OpenDoorState extends State<OpenDoor> {
   @override
   Widget build(BuildContext context) {
     ButtonStyle borderStyle = ElevatedButton.styleFrom(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero));
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        foregroundColor: Theme.of(context).primaryColor,
+        textStyle: TextStyle(
+            fontSize: Theme.of(context).textTheme.headlineMedium!.fontSize));
 
     return Column(
       children: [
@@ -104,13 +107,17 @@ class _OpenDoorState extends State<OpenDoor> {
                   child: ElevatedButton(
                       style: borderStyle,
                       onPressed: outerDoor,
-                      child: const Text("Außentüre")),
+                      child: Text(
+                        "Außentüre",
+                      )),
                 ),
                 Expanded(
                     child: ElevatedButton(
                         style: borderStyle,
                         onPressed: innerDoor,
-                        child: const Text("Innentüre")))
+                        child: Text(
+                          "Innentüre",
+                        )))
               ],
             ),
           ),

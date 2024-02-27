@@ -187,6 +187,7 @@ class _PresenceState extends State<Presence> {
                           whenICome = value;
                         });
                       }),
+                  Text("Und was möchtest du tun?"),
                   Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: DropdownButton<ComingType>(
