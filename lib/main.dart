@@ -2,8 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:openlab_flutter/open_door.dart';
 import 'package:openlab_flutter/presence.dart';
 import 'package:openlab_flutter/settings.dart';
+import 'dart:typed_data';
 
-void main() {
+void main() async {
+  // WidgetsFlutterBinding.ensureInitialized();
+
+  // _nfcState = await NfcHce.checkDeviceNfcState();
+
+  // if (_nfcState == NfcState.enabled) {
+  //   await NfcHce.init(
+  //     // AID that match at least one aid-filter in apduservice.xml
+  //     // In my case it is A000DADADADADA.
+  //     aid: Uint8List.fromList([0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x00]),
+  //     // next parameter determines whether APDU responses from the ports
+  //     // on which the connection occurred will be deleted.
+  //     // If `true`, responses will be deleted, otherwise won't.
+  //     permanentApduResponses: false,
+  //     // next parameter determines whether APDU commands received on ports
+  //     // to which there are no responses will be added to the stream.
+  //     // If `true`, command won't be added, otherwise will.
+  //     listenOnlyConfiguredPorts: false,
+  //   );
+  //   print("NFC HCE Initialized");
+  // } else {
+  //   print("Cant enable NFC HCE");
+  // }
   runApp(const Openlab());
 }
 

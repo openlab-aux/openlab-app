@@ -62,6 +62,7 @@ class _SettingsState extends State<Settings> {
             padding: const EdgeInsets.all(8.0),
             child: TextFormField(
               controller: passwordController,
+              obscureText: true,
               decoration: InputDecoration(
                   border: OutlineInputBorder(), label: Text("Password")),
               onChanged: (value) async => {

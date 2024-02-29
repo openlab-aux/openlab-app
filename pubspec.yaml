@@ -42,6 +42,8 @@ dependencies:
   direct_select: ^2.0.0
   retry: ^3.1.2
   wifi_iot: ^0.3.19
+  flutter_nfc_kit: ^3.4.2
+  ndef: ^0.3.3
 
 dev_dependencies:
   flutter_test:

@@ -1,11 +1,16 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io' show Platform;
 import 'package:retry/retry.dart';
 import 'package:wifi_iot/wifi_iot.dart';
+import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
+import 'package:ndef/ndef.dart' as ndef;
+
+const _platform = MethodChannel("hce");
 
 class OpenDoor extends StatefulWidget {
   @override
@@ -16,11 +21,43 @@ class _OpenDoorState extends State<OpenDoor> {
   final FlutterSecureStorage storage = const FlutterSecureStorage();
   String username = "";
   String password = "";
+  // this will be changed in the NfcHce.stream listen callback
+
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       initValues();
     });
+  }
+
+  Future<void> readNFC() async {
+    var availability = await FlutterNfcKit.nfcAvailability;
+    if (availability != NFCAvailability.available) {
+      // oh-no
+      print("NFC not available");
+    } // timeout only works on Android, while the latter two messages are only for iOS
+    var tag = await FlutterNfcKit.poll(
+        timeout: Duration(seconds: 10),
+        iosMultipleTagMessage: "Multiple tags found!",
+        iosAlertMessage: "Scan your tag");
+    print(jsonEncode(tag));
+  }
+
+  Future<void> emulate() async {
+    _platform.setMethodCallHandler((MethodCall call) async {
+      bool unlocked = call.arguments["success"];
+      switch (call.method) {
+        case "onHCEResult":
+          print("Bla");
+          break;
+      }
+    });
+    // // change port here
+    // var port = 0;
+    // // change data to transmit here
+    // var data = [12, 34, 56, 78, 90, 0xab, 0xcd, 0xef, 90, 00];
+    // await NfcHce.addApduResponse(port, data);
+    // print("Emulated the data");
   }
 
   void initValues() async {
@@ -30,9 +67,17 @@ class _OpenDoorState extends State<OpenDoor> {
       this.username = u;
       this.password = p;
     });
+
+    // NfcHce.stream.listen((command) {
+    //   print("Steeeeeeeeeeeeeeeeeeeeaaaaaaam");
+    //   print(command);
+    //   setState(() => nfcApduCommand = command);
+    // });
   }
 
   void connectWifi() async {
+    await emulate();
+    return;
     try {
       if (Platform.isAndroid || Platform.isIOS) {
         await retry(() async {
