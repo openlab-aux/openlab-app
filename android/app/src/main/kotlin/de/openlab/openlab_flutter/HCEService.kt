@@ -1,9 +1,13 @@
+package de.openlab.openlab_flutter
+import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import de.openlab.openlab_flutter.MainActivity
 
 class HCEService : HostApduService() {
     var aid = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+    var hello = byteArrayOf(0, 0xA4.toByte(), 4, 0, 7, 0xA0.toByte(), 0, 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte());
 
     public fun byteArrayToString(array: ByteArray): String {
         var str = "["
@@ -20,10 +24,23 @@ class HCEService : HostApduService() {
     ): ByteArray {
         if (commandApdu != null) {
             Log.i("HCE", "APDU Command ${byteArrayToString(commandApdu)}")
+            
+            Log.i("HCE", "hello ${byteArrayToString(hello)}")
+            if(commandApdu contentEquals hello){
+                return byteArrayOf(0x90.toByte(), 0x00)
+            }else {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("hce", commandApdu)
+                    },
+            )
+            }
         } else {
             Log.i("HCE", "Command is empty")
         }
-        return byteArrayOf(0x00)
+        return byteArrayOf(0x00, 0x00, 0x00)
     }
 
     override fun onDeactivated(reason: Int) {}

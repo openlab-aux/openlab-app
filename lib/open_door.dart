@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +11,10 @@ import 'package:wifi_iot/wifi_iot.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
 
-const _platform = MethodChannel("hce");
+const hce = MethodChannel("hce");
+
+Uint8List selectApdu = Uint8List.fromList(
+    [0, 0xa4, 4, 0, 7, 0xa0, 0, 0xda, 0xda, 0xda, 0xda, 0xda]);
 
 class OpenDoor extends StatefulWidget {
   @override
@@ -28,6 +32,14 @@ class _OpenDoorState extends State<OpenDoor> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       initValues();
     });
+
+    hce.setMethodCallHandler((MethodCall call) async {
+      switch (call.method) {
+        case "commandApdu":
+          Uint8List apdu = call.arguments;
+          break;
+      }
+    });
   }
 
   Future<void> readNFC() async {
@@ -44,14 +56,12 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<void> emulate() async {
-    _platform.setMethodCallHandler((MethodCall call) async {
-      bool unlocked = call.arguments["success"];
-      switch (call.method) {
-        case "onHCEResult":
-          print("Bla");
-          break;
-      }
-    });
+    var result = await hce.invokeMethod<bool>("startHCE");
+    if (result == true) {
+      print("Yeah called the method");
+    } else {
+      print("Nonononono");
+    }
     // // change port here
     // var port = 0;
     // // change data to transmit here
