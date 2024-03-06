@@ -1,9 +1,9 @@
-package de.openlab.openlab_flutter
+package de.openlab.openlabflutter
 import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
-import de.openlab.openlab_flutter.MainActivity
+import de.openlab.openlabflutter.MainActivity
 
 class HCEService : HostApduService() {
     var aid = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
@@ -27,15 +27,15 @@ class HCEService : HostApduService() {
             
             Log.i("HCE", "hello ${byteArrayToString(hello)}")
             if(commandApdu contentEquals hello){
-                return byteArrayOf(0x90.toByte(), 0x00)
-            }else {
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        putExtra("hce", commandApdu)
+                        putExtra("hce", 0)
                     },
             )
+            return byteArrayOf(0x90.toByte(), 0x00)
+            }else {
             }
         } else {
             Log.i("HCE", "Command is empty")

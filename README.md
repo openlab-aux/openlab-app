@@ -1,4 +1,4 @@
-# openlab_flutter
+# openlabflutter
 
 A new Flutter project.
 

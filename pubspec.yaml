@@ -1,4 +1,4 @@
-name: openlab_flutter
+name: openlabflutter
 description: A new Flutter project.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -44,6 +44,7 @@ dependencies:
   wifi_iot: ^0.3.19
   flutter_nfc_kit: ^3.4.2
   ndef: ^0.3.3
+  keycloak_wrapper: ^1.1.0
 
 dev_dependencies:
   flutter_test:

@@ -5,14 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:openlabflutter/main.dart';
 import 'dart:io' show Platform;
 import 'package:retry/retry.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
+import 'package:keycloak_wrapper/keycloak_wrapper.dart';
 
 const hce = MethodChannel("hce");
-
 Uint8List selectApdu = Uint8List.fromList(
     [0, 0xa4, 4, 0, 7, 0xa0, 0, 0xda, 0xda, 0xda, 0xda, 0xda]);
 
@@ -34,12 +35,25 @@ class _OpenDoorState extends State<OpenDoor> {
     });
 
     hce.setMethodCallHandler((MethodCall call) async {
+      print(call.method);
       switch (call.method) {
         case "commandApdu":
-          Uint8List apdu = call.arguments;
+          await loginKeykloak();
           break;
       }
     });
+  }
+
+  Future<bool?> loginKeykloak() async {
+    print("trying keykloak login");
+    final config = KeycloakConfig(
+      bundleIdentifier: 'de.openlab.openlabflutter',
+      clientId: 'openlab-app',
+      frontendUrl: 'https://keycloak.lab.weltraumpflege.org/',
+      realm: 'OpenLab',
+    );
+    await keycloakWrapper.login(config);
+    print("After keykloadk login");
   }
 
   Future<void> readNFC() async {

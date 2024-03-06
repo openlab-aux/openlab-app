@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:openlab_flutter/open_door.dart';
-import 'package:openlab_flutter/presence.dart';
-import 'package:openlab_flutter/settings.dart';
+import 'package:openlabflutter/open_door.dart';
+import 'package:openlabflutter/presence.dart';
+import 'package:openlabflutter/settings.dart';
 import 'dart:typed_data';
+
+import 'package:keycloak_wrapper/keycloak_wrapper.dart';
+
+final keycloakWrapper = KeycloakWrapper();
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   // WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +32,18 @@ void main() async {
   // } else {
   //   print("Cant enable NFC HCE");
   // }
+
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize the plugin at the start of your app.
+  await keycloakWrapper.initialize();
+  // Listen to the errors caught by the plugin.
+  keycloakWrapper.onError = (e, s) {
+    // Display the error message inside a snackbar.
+    scaffoldMessengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('$e')));
+  };
+
   runApp(const Openlab());
 }
 

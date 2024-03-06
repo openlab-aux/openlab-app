@@ -1,4 +1,4 @@
-package de.openlab.openlab_flutter
+package de.openlab.openlabflutter
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -41,7 +41,7 @@ class MainActivity : FlutterActivity() {
         onHCEResult(intent)
     }
   }
-  private fun onHCEResult(intent: Intent) = intent.getByteArrayExtra("hce").let { success ->
-      channel.invokeMethod("commandApdu", intent.getByteArrayExtra("hce"))
+  private fun onHCEResult(intent: Intent) = intent.getIntExtra("hce", -1).let { success ->
+      channel.invokeMethod("commandApdu", intent.getIntExtra("hce", -1))
   }
 }
