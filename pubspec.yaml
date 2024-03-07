@@ -45,7 +45,6 @@ dependencies:
   flutter_nfc_kit: ^3.4.2
   ndef: ^0.3.3
   keycloak_wrapper: ^1.1.0
-  flutter_appauth: ^6.0.4
 
 dev_dependencies:
   flutter_test:
