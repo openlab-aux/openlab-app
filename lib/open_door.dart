@@ -11,9 +11,13 @@ import 'package:retry/retry.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
-import 'package:keycloak_wrapper/keycloak_wrapper.dart';
+import 'package:flutter_appauth/flutter_appauth.dart';
 
 const hce = MethodChannel("hce");
+const clientId = 'openlab-app';
+const issuer = 'https://keycloak.lab.weltraumpflege.org/realms/OpenLab';
+const redirect = 'de.openlab.openlabflutter:/oauthredirect';
+const scopes = ['openid'];
 Uint8List selectApdu = Uint8List.fromList(
     [0, 0xa4, 4, 0, 7, 0xa0, 0, 0xda, 0xda, 0xda, 0xda, 0xda]);
 
@@ -26,8 +30,11 @@ class _OpenDoorState extends State<OpenDoor> {
   final FlutterSecureStorage storage = const FlutterSecureStorage();
   String username = "";
   String password = "";
+  String refreshToken = "";
+  String accessToken = "";
   // this will be changed in the NfcHce.stream listen callback
 
+  final FlutterAppAuth _appAuth = const FlutterAppAuth();
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -40,20 +47,63 @@ class _OpenDoorState extends State<OpenDoor> {
         case "commandApdu":
           await loginKeykloak();
           break;
+        case "getAccessToken":
+          await loginKeykloak();
+          await getAccessToken();
       }
     });
   }
 
+  Future<void> getAccessToken() async {
+    if (refreshToken.isEmpty) {
+      await loginKeykloak();
+    } else {
+      final TokenResponse? result = await _appAuth.token(TokenRequest(
+          clientId, redirect,
+          refreshToken: refreshToken, issuer: issuer, scopes: scopes));
+
+      if (result != null) {
+        await setRefreshTokenAndAccessToken(
+            result!.refreshToken, result!.accessToken);
+      }
+    }
+    var result = await hce.invokeMethod<bool>("accessToken", accessToken);
+  }
+
   Future<bool?> loginKeykloak() async {
     print("trying keykloak login");
-    final config = KeycloakConfig(
-      bundleIdentifier: 'de.openlab.openlabflutter',
-      clientId: 'openlab-app',
-      frontendUrl: 'https://keycloak.lab.weltraumpflege.org/',
-      realm: 'OpenLab',
+    final AuthorizationTokenResponse? result =
+        await _appAuth.authorizeAndExchangeCode(
+      AuthorizationTokenRequest(
+        'openlab-app',
+        'de.openlab.openlabflutter:/oauthredirect',
+        serviceConfiguration: AuthorizationServiceConfiguration(
+            authorizationEndpoint:
+                "https://keycloak.lab.weltraumpflege.org/realms/OpenLab/protocol/openid-connect/auth",
+            tokenEndpoint:
+                "https://keycloak.lab.weltraumpflege.org/realms/OpenLab/protocol/openid-connect/token",
+            endSessionEndpoint:
+                "https://keycloak.lab.weltraumpflege.org/realms/OpenLab/protocol/openid-connect/logout"),
+        clientSecret: '05udWNKmMseb4R76wjRdcQjMrWiCLE3I',
+        issuer: issuer,
+        scopes: scopes,
+      ),
     );
-    await keycloakWrapper.login(config);
-    print("After keykloadk login");
+    if (result != null) {
+      await setRefreshTokenAndAccessToken(
+          result!.refreshToken, result!.accessToken);
+    }
+
+    print("After keykloadk login ");
+  }
+
+  Future<void> setRefreshTokenAndAccessToken(
+      String? refreshToken, String? accessToken) async {
+    await storage.write(key: "refreshToken", value: refreshToken);
+    setState(() {
+      refreshToken = refreshToken ?? "";
+      accessToken = accessToken ?? "";
+    });
   }
 
   Future<void> readNFC() async {
@@ -73,6 +123,7 @@ class _OpenDoorState extends State<OpenDoor> {
     var result = await hce.invokeMethod<bool>("startHCE");
     if (result == true) {
       print("Yeah called the method");
+      var result = await hce.invokeMethod<bool>("accessToken");
     } else {
       print("Nonononono");
     }
@@ -87,9 +138,11 @@ class _OpenDoorState extends State<OpenDoor> {
   void initValues() async {
     String u = await storage.read(key: "username") ?? "";
     String p = await storage.read(key: "password") ?? "";
+    String r = await storage.read(key: "refreshToken") ?? "";
     setState(() {
       this.username = u;
       this.password = p;
+      this.refreshToken = r;
     });
 
     // NfcHce.stream.listen((command) {
