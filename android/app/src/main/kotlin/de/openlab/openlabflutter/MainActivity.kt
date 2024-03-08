@@ -1,6 +1,7 @@
 package de.openlab.openlabflutter
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -30,10 +31,12 @@ class MainActivity : FlutterActivity() {
             if (call.method == "startHCE") {
                 result.success(true)
             } else if (call.method == "accessToken") {
-                intent.apply {
+                Log.i("HCE", "se main accesstoken " + getIntent()!!.getStringExtra("accessToken"))
+                getIntent().apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtra("accessToken", call.argument<String>("accessToken"))
                 }
+                Log.i("HCE", "Added accessToken")
             } else {
                 result.success(false)
             }
@@ -53,6 +56,7 @@ class MainActivity : FlutterActivity() {
             if (command == 0) {
                 channel.invokeMethod("commandApdu", null)
             } else if (command == 1) {
+                Log.i("HCE", "command 1")
                 channel.invokeMethod("getAccessToken", null)
             }
         }

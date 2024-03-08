@@ -18,8 +18,6 @@ const clientId = 'openlab-app';
 const issuer = 'https://keycloak.lab.weltraumpflege.org/realms/OpenLab';
 const redirect = 'de.openlab.openlabflutter:/oauthredirect';
 const scopes = ['openid'];
-Uint8List selectApdu = Uint8List.fromList(
-    [0, 0xa4, 4, 0, 7, 0xa0, 0, 0xda, 0xda, 0xda, 0xda, 0xda]);
 
 class OpenDoor extends StatefulWidget {
   @override
@@ -48,8 +46,8 @@ class _OpenDoorState extends State<OpenDoor> {
           await loginKeykloak();
           break;
         case "getAccessToken":
-          await loginKeykloak();
           await getAccessToken();
+          print("Finished getting access Token");
       }
     });
   }
@@ -58,16 +56,21 @@ class _OpenDoorState extends State<OpenDoor> {
     if (refreshToken.isEmpty) {
       await loginKeykloak();
     } else {
+      print("Already logged in");
       final TokenResponse? result = await _appAuth.token(TokenRequest(
           clientId, redirect,
           refreshToken: refreshToken, issuer: issuer, scopes: scopes));
 
+      while (true) print("Refresh result");
       if (result != null) {
         await setRefreshTokenAndAccessToken(
             result!.refreshToken, result!.accessToken);
+      } else {
+        print("Refresh not working");
       }
     }
-    var result = await hce.invokeMethod<bool>("accessToken", accessToken);
+    var result = await hce
+        .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
   }
 
   Future<bool?> loginKeykloak() async {
@@ -79,12 +82,12 @@ class _OpenDoorState extends State<OpenDoor> {
         'de.openlab.openlabflutter:/oauthredirect',
         serviceConfiguration: AuthorizationServiceConfiguration(
             authorizationEndpoint:
-                "https://keycloak.lab.weltraumpflege.org/realms/OpenLab/protocol/openid-connect/auth",
+                "https://keycloak.lab.weltraumpflege.org/realms/OpenLabTest/protocol/openid-connect/auth",
             tokenEndpoint:
-                "https://keycloak.lab.weltraumpflege.org/realms/OpenLab/protocol/openid-connect/token",
+                "https://keycloak.lab.weltraumpflege.org/realms/OpenLabTest/protocol/openid-connect/token",
             endSessionEndpoint:
-                "https://keycloak.lab.weltraumpflege.org/realms/OpenLab/protocol/openid-connect/logout"),
-        clientSecret: '05udWNKmMseb4R76wjRdcQjMrWiCLE3I',
+                "https://keycloak.lab.weltraumpflege.org/realms/OpenLabTest/protocol/openid-connect/logout"),
+        clientSecret: 'VcJGq5LUZBg37nrbSEnwWOSRMKJtrlOe',
         issuer: issuer,
         scopes: scopes,
       ),

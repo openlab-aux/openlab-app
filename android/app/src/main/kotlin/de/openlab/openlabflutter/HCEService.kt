@@ -7,9 +7,9 @@ import android.util.Log
 class HCEService : HostApduService() {
     var aid = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
     var hello =
-        byteArrayOf(0, 0xA4.toByte(), 4, 0, 0xA0.toByte(), 0, 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte())
+        byteArrayOf(0, 0xA4.toByte(), 4, 0, 7, 0xA0.toByte(), 0, 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte())
     var pollAccessToken =
-        byteArrayOf(0, 0xA4.toByte(), 4, 0, 0xA0.toByte(), 0, 0xAA.toByte(), 0xAA.toByte(), 0xAA.toByte(), 0xAA.toByte(), 0xAA.toByte())
+        byteArrayOf(0xD0.toByte(), 0x0F.toByte(), 0, 0, 2, 0, 8)
 
     var intent: Intent? = null
 
@@ -31,18 +31,23 @@ class HCEService : HostApduService() {
             Log.i("HCE", "hello ${byteArrayToString(hello)}")
             Log.i("HCE", "pollAccessToken ${byteArrayToString(pollAccessToken)}")
             if (commandApdu contentEquals hello) {
+                Log.i("HCE", "Heeeeloooo")
                 intent =
                     Intent(this, MainActivity::class.java)
                         .apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            putExtra("hce", 0)
+                            putExtra("hce", 1)
                         }
 
                 startActivity(intent)
                 return byteArrayOf(0x90.toByte(), 0x00)
             } else if (commandApdu contentEquals pollAccessToken) {
+                Log.i("HCE", "pollAccesss " + intent.toString())
+                Log.i("HCE", "se true accesstoken " + intent!!.getStringExtra("accessToken"))
+
                 if (intent != null && intent!!.hasExtra("accessToken") && intent!!.getStringExtra("accessToken")!!.isNotEmpty()) {
                     val accessToken = intent!!.getStringExtra("accessToken")!!
+                    Log.i("HCE", "Itse intent acces token")
                     return accessToken.toByteArray()
                 } else {
                     return byteArrayOf(0x99.toByte(), 0x99.toByte())
