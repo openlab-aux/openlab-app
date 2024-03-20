@@ -4,6 +4,8 @@ import 'package:openlabflutter/presence.dart';
 import 'package:openlabflutter/settings.dart';
 import 'dart:typed_data';
 
+import 'package:openlabflutter/strichliste.dart';
+
 void main() async {
   // WidgetsFlutterBinding.ensureInitialized();
 
@@ -45,7 +47,7 @@ class _OpenlabState extends State<Openlab> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        title: 'Flutter Demo',
+        title: 'Openlab',
         theme: ThemeData(
           // This is the theme of your application.
           //
@@ -87,6 +89,9 @@ class _MainWidgetState extends State<MainWidget> {
         widget = Presence();
         break;
       case 2:
+        widget = Strichliste();
+        break;
+      case 3:
         widget = Settings();
         break;
       default:
@@ -96,6 +101,10 @@ class _MainWidgetState extends State<MainWidget> {
     return Scaffold(
         body: SafeArea(child: widget),
         bottomNavigationBar: BottomNavigationBar(
+          backgroundColor: Color.fromRGBO(0, 104, 69, 255),
+          selectedItemColor: Colors.white,
+          unselectedItemColor: Colors.grey,
+          type: BottomNavigationBarType.shifting,
           currentIndex: _selectedIndex,
           onTap: (value) {
             setState(() {
@@ -106,14 +115,22 @@ class _MainWidgetState extends State<MainWidget> {
             BottomNavigationBarItem(
               icon: Icon(Icons.home),
               label: 'Tür',
+              backgroundColor: Color.fromRGBO(0, 104, 69, 1),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.business),
               label: 'Präsenz',
+              backgroundColor: Color.fromRGBO(0, 104, 69, 1),
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.school),
+              label: 'Strichliste',
+              backgroundColor: Color.fromRGBO(0, 104, 69, 1),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.school),
               label: 'Settings',
+              backgroundColor: Color.fromRGBO(0, 104, 69, 1),
             ),
           ],
         ));

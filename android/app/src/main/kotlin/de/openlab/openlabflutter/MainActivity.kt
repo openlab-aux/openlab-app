@@ -31,12 +31,8 @@ class MainActivity : FlutterActivity() {
             if (call.method == "startHCE") {
                 result.success(true)
             } else if (call.method == "accessToken") {
-                Log.i("HCE", "se main accesstoken " + getIntent()!!.getStringExtra("accessToken"))
-                getIntent().apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    putExtra("accessToken", call.argument<String>("accessToken"))
-                }
-                Log.i("HCE", "Added accessToken")
+                HCEService.tokenLiveData.setValue(call.argument<String>("accessToken"))
+                Log.i("HCE", "se main accesstoken " + call.argument<String>("accessToken"))
             } else {
                 result.success(false)
             }

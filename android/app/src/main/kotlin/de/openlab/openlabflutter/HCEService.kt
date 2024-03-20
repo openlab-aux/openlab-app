@@ -3,6 +3,7 @@ import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import androidx.lifecycle.MutableLiveData
 
 class HCEService : HostApduService() {
     var aid = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
@@ -10,8 +11,11 @@ class HCEService : HostApduService() {
         byteArrayOf(0, 0xA4.toByte(), 4, 0, 7, 0xA0.toByte(), 0, 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte())
     var pollAccessToken =
         byteArrayOf(0xD0.toByte(), 0x0F.toByte(), 0, 0, 2, 0, 8)
-
     var intent: Intent? = null
+
+    companion object {
+        public val tokenLiveData = MutableLiveData<String>()
+    }
 
     public fun byteArrayToString(array: ByteArray): String {
         var str = "["
@@ -33,25 +37,24 @@ class HCEService : HostApduService() {
             if (commandApdu contentEquals hello) {
                 Log.i("HCE", "Heeeeloooo")
                 intent =
-                    Intent(this, MainActivity::class.java)
-                        .apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            putExtra("hce", 1)
-                        }
+                    Intent(this, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("hce", 1)
+                    }
 
                 startActivity(intent)
                 return byteArrayOf(0x90.toByte(), 0x00)
             } else if (commandApdu contentEquals pollAccessToken) {
-                Log.i("HCE", "pollAccesss " + intent.toString())
-                Log.i("HCE", "se true accesstoken " + intent!!.getStringExtra("accessToken"))
+                Log.i("HCE", "se true accesstoken " + HCEService.tokenLiveData.value)
 
-                if (intent != null && intent!!.hasExtra("accessToken") && intent!!.getStringExtra("accessToken")!!.isNotEmpty()) {
-                    val accessToken = intent!!.getStringExtra("accessToken")!!
-                    Log.i("HCE", "Itse intent acces token")
-                    return accessToken.toByteArray()
-                } else {
-                    return byteArrayOf(0x99.toByte(), 0x99.toByte())
-                }
+                // if (intent != null && intent!!.hasExtra("accessToken") && intent!!.getStringExtra("accessToken")!!.isNotEmpty()) {
+                //     val accessToken = intent!!.getStringExtra("accessToken")!!
+                //     Log.i("HCE", "Itse intent acces token")
+                //     return accessToken.toByteArray()
+                // } else {
+                //     return byteArrayOf(0x99.toByte(), 0x99.toByte())
+                // }
+                return (byteArrayOf(0x90.toByte(), 0x00))
             } else {
                 return byteArrayOf(0x90.toByte(), 0x00)
             }
@@ -62,5 +65,6 @@ class HCEService : HostApduService() {
         return byteArrayOf(0x00, 0x00, 0x00)
     }
 
-    override fun onDeactivated(reason: Int) {}
+    override fun onDeactivated(reason: Int) {
+    }
 }

@@ -61,6 +61,7 @@ class _OpenDoorState extends State<OpenDoor> {
           clientId, redirect,
           refreshToken: refreshToken, issuer: issuer, scopes: scopes));
 
+      // TODO: fix that token method is going on forever
       while (true) print("Refresh result");
       if (result != null) {
         await setRefreshTokenAndAccessToken(
@@ -126,7 +127,8 @@ class _OpenDoorState extends State<OpenDoor> {
     var result = await hce.invokeMethod<bool>("startHCE");
     if (result == true) {
       print("Yeah called the method");
-      var result = await hce.invokeMethod<bool>("accessToken");
+      var result = await hce
+          .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
     } else {
       print("Nonononono");
     }
