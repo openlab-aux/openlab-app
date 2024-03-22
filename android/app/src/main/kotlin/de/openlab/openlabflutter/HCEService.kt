@@ -4,6 +4,7 @@ import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
+import kotlin.byteArrayOf
 
 class HCEService : HostApduService() {
     var aid = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
@@ -46,15 +47,12 @@ class HCEService : HostApduService() {
                 return byteArrayOf(0x90.toByte(), 0x00)
             } else if (commandApdu contentEquals pollAccessToken) {
                 Log.i("HCE", "se true accesstoken " + HCEService.tokenLiveData.value)
-
-                // if (intent != null && intent!!.hasExtra("accessToken") && intent!!.getStringExtra("accessToken")!!.isNotEmpty()) {
-                //     val accessToken = intent!!.getStringExtra("accessToken")!!
-                //     Log.i("HCE", "Itse intent acces token")
-                //     return accessToken.toByteArray()
-                // } else {
-                //     return byteArrayOf(0x99.toByte(), 0x99.toByte())
-                // }
-                return (byteArrayOf(0x90.toByte(), 0x00))
+                var tokenValue: String? = HCEService.tokenLiveData.value
+                if (tokenValue != null && tokenValue.isNotEmpty()) {
+                    return tokenValue.toByteArray()
+                } else {
+                    return (byteArrayOf(0x90.toByte(), 0x00))
+                }
             } else {
                 return byteArrayOf(0x90.toByte(), 0x00)
             }

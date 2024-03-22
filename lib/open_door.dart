@@ -42,9 +42,6 @@ class _OpenDoorState extends State<OpenDoor> {
     hce.setMethodCallHandler((MethodCall call) async {
       print(call.method);
       switch (call.method) {
-        case "commandApdu":
-          await loginKeykloak();
-          break;
         case "getAccessToken":
           await getAccessToken();
           print("Finished getting access Token");
@@ -53,28 +50,15 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<void> getAccessToken() async {
-    if (refreshToken.isEmpty) {
-      await loginKeykloak();
-    } else {
-      print("Already logged in");
-      final TokenResponse? result = await _appAuth.token(TokenRequest(
-          clientId, redirect,
-          refreshToken: refreshToken, issuer: issuer, scopes: scopes));
-
-      // TODO: fix that token method is going on forever
-      while (true) print("Refresh result");
-      if (result != null) {
-        await setRefreshTokenAndAccessToken(
-            result!.refreshToken, result!.accessToken);
-      } else {
-        print("Refresh not working");
-      }
+    String? accessToken = await loginKeykloak();
+    if (accessToken != null) {
+      print("Aaaaaaaaaaaa:" + accessToken);
+      var result = await hce
+          .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
     }
-    var result = await hce
-        .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
   }
 
-  Future<bool?> loginKeykloak() async {
+  Future<String?> loginKeykloak() async {
     print("trying keykloak login");
     final AuthorizationTokenResponse? result =
         await _appAuth.authorizeAndExchangeCode(
@@ -96,8 +80,8 @@ class _OpenDoorState extends State<OpenDoor> {
     if (result != null) {
       await setRefreshTokenAndAccessToken(
           result!.refreshToken, result!.accessToken);
+      return result!.accessToken;
     }
-
     print("After keykloadk login ");
   }
 

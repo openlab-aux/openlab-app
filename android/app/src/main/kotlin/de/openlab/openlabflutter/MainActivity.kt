@@ -32,7 +32,6 @@ class MainActivity : FlutterActivity() {
                 result.success(true)
             } else if (call.method == "accessToken") {
                 HCEService.tokenLiveData.setValue(call.argument<String>("accessToken"))
-                Log.i("HCE", "se main accesstoken " + call.argument<String>("accessToken"))
             } else {
                 result.success(false)
             }
@@ -49,9 +48,7 @@ class MainActivity : FlutterActivity() {
     private fun onHCEResult(intent: Intent) =
         intent.getIntExtra("hce", -1).let { success ->
             val command = intent.getIntExtra("hce", -1)
-            if (command == 0) {
-                channel.invokeMethod("commandApdu", null)
-            } else if (command == 1) {
+            if (command == 1) {
                 Log.i("HCE", "command 1")
                 channel.invokeMethod("getAccessToken", null)
             }
