@@ -53,7 +53,12 @@ class HCEService : HostApduService() {
                 if (tokenValue != null && tokenValue.isNotEmpty()) {
                     var tokenByteArray = tokenValue.toByteArray()
                     if(tokenByteArray.size >= (tokenByteArray.size / chunkSize) * (tokenIndex + 1)){
-                        return tokenByteArray.sliceArray(IntRange((tokenByteArray.size/chunkSize) * tokenIndex, (tokenByteArray.size/chunkSize) * (tokenIndex + 1)))
+                        var returnArray = tokenByteArray.sliceArray(IntRange((tokenByteArray.size/chunkSize) * tokenIndex, (tokenByteArray.size/chunkSize) * (tokenIndex + 1)))
+                        tokenIndex++
+                        return returnArray
+                    }else{
+                        tokenIndex = 0;
+                        return byteArrayOf();
                     }
                 } else {
                     return (byteArrayOf(0x90.toByte(), 0x00))
