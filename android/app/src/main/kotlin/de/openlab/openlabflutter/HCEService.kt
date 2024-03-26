@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import kotlin.byteArrayOf
+import kotlin.text.toByteArray
 
 class HCEService : HostApduService() {
     var aid = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
@@ -13,6 +14,8 @@ class HCEService : HostApduService() {
     var pollAccessToken =
         byteArrayOf(0xD0.toByte(), 0x0F.toByte(), 0, 0, 2, 0, 8)
     var intent: Intent? = null
+    var tokenIndex: Int = 0
+    var chunkSize: Int = 256
 
     companion object {
         public val tokenLiveData = MutableLiveData<String>()
@@ -46,10 +49,12 @@ class HCEService : HostApduService() {
                 startActivity(intent)
                 return byteArrayOf(0x90.toByte(), 0x00)
             } else if (commandApdu contentEquals pollAccessToken) {
-                Log.i("HCE", "se true accesstoken " + HCEService.tokenLiveData.value)
                 var tokenValue: String? = HCEService.tokenLiveData.value
                 if (tokenValue != null && tokenValue.isNotEmpty()) {
-                    return tokenValue.toByteArray()
+                    var tokenByteArray = tokenValue.toByteArray()
+                    if(tokenByteArray.size >= (tokenByteArray.size / chunkSize) * (tokenIndex + 1)){
+                        return tokenByteArray.sliceArray(IntRange((tokenByteArray.size/chunkSize) * tokenIndex, (tokenByteArray.size/chunkSize) * (tokenIndex + 1)))
+                    }
                 } else {
                     return (byteArrayOf(0x90.toByte(), 0x00))
                 }
