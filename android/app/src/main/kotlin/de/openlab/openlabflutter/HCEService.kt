@@ -50,20 +50,13 @@ class HCEService : HostApduService() {
 
                 startActivity(intent)
                 return byteArrayOf(0x90.toByte(), 0x00)
-            }else if(commandApdu.sliceArray(IntRange(0, 1)) contentEquals tokenAvailableStart){
+            }else if(commandApdu.sliceArray(IntRange(0, 1)) contentEquals tokenAvailableStart && commandApdu.size >= 6){
                 var tokenValue: String? = HCEService.tokenLiveData.value
                 if (tokenValue != null && tokenValue.isNotEmpty()) {
                     var tokenByteArray = tokenValue.toByteArray()
-                    if(tokenByteArray.size >= (tokenByteArray.size / chunkSize) * (tokenIndex + 1)){
-                        var returnArray = tokenByteArray.sliceArray(IntRange((tokenByteArray.size/chunkSize) * tokenIndex, (tokenByteArray.size/chunkSize) * (tokenIndex + 1)))
-                        tokenIndex++
-                        return returnArray
-                    }else{
-                        tokenIndex = 0;
-                        return byteArrayOf(0x00);
-                    }
+                    return byteArrayOf(Math.floor(tokenByteArray.size / commandApdu[2].toDouble()).toInt().toByte(), (tokenByteArray.size % commandApdu[2]).toByte())
                 } else {
-                    return (byteArrayOf(0x90.toByte(), 0x00))
+                    return (byteArrayOf(0x00, 0x00, 0x91.toByte(), 0x00))
                 }
             } else if (commandApdu contentEquals pollAccessToken) {
                 var tokenValue: String? = HCEService.tokenLiveData.value
