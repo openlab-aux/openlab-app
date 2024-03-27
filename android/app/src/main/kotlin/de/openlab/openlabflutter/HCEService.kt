@@ -13,6 +13,8 @@ class HCEService : HostApduService() {
         byteArrayOf(0, 0xA4.toByte(), 4, 0, 7, 0xA0.toByte(), 0, 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte(), 0xDA.toByte())
     var pollAccessToken =
         byteArrayOf(0xD0.toByte(), 0x0F.toByte(), 0, 0, 2, 0, 8)
+    var tokenAvailableStart =
+        byteArrayOf(0xD0.toByte(), 0x01.toByte())
     var intent: Intent? = null
     var tokenIndex: Int = 0
     var chunkSize: Int = 256
@@ -48,6 +50,21 @@ class HCEService : HostApduService() {
 
                 startActivity(intent)
                 return byteArrayOf(0x90.toByte(), 0x00)
+            }else if(commandApdu.sliceArray(IntRange(0, 1)) contentEquals tokenAvailableStart){
+                var tokenValue: String? = HCEService.tokenLiveData.value
+                if (tokenValue != null && tokenValue.isNotEmpty()) {
+                    var tokenByteArray = tokenValue.toByteArray()
+                    if(tokenByteArray.size >= (tokenByteArray.size / chunkSize) * (tokenIndex + 1)){
+                        var returnArray = tokenByteArray.sliceArray(IntRange((tokenByteArray.size/chunkSize) * tokenIndex, (tokenByteArray.size/chunkSize) * (tokenIndex + 1)))
+                        tokenIndex++
+                        return returnArray
+                    }else{
+                        tokenIndex = 0;
+                        return byteArrayOf(0x00);
+                    }
+                } else {
+                    return (byteArrayOf(0x90.toByte(), 0x00))
+                }
             } else if (commandApdu contentEquals pollAccessToken) {
                 var tokenValue: String? = HCEService.tokenLiveData.value
                 if (tokenValue != null && tokenValue.isNotEmpty()) {
@@ -58,7 +75,7 @@ class HCEService : HostApduService() {
                         return returnArray
                     }else{
                         tokenIndex = 0;
-                        return byteArrayOf();
+                        return byteArrayOf(0x00);
                     }
                 } else {
                     return (byteArrayOf(0x90.toByte(), 0x00))
