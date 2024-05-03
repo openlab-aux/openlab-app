@@ -77,16 +77,24 @@ class HCEService : HostApduService() {
                     var tokenByteArray = tokenValue.toByteArray()
                     var tokenIndex = commandApdu[2]
                     var tschunkSize = commandApdu[3]
-                    if (tokenByteArray.size >= (tokenByteArray.size / tschunkSize) * (tokenIndex + 1)) {
+                    Log.i("HCE", tokenByteArray.size.toString())
+                    Log.i("HCE", tschunkSize.toString())
+                    Log.i("HCE", tokenIndex.toString())
+                    if (tokenByteArray.size >= (tschunkSize) * (tokenIndex + 1)) {
                         var returnArray =
                             tokenByteArray.sliceArray(
                                 IntRange(
-                                    (tokenByteArray.size / tschunkSize) * tokenIndex,
-                                    (tokenByteArray.size / tschunkSize) * (tokenIndex + 1),
+                                    tschunkSize * tokenIndex,
+                                    tschunkSize * (tokenIndex + 1),
                                 ),
                             )
+
+                        Log.i("HCE", (tschunkSize * tokenIndex).toString())
+                        Log.i("HCE", (tschunkSize * (tokenIndex + 1)).toString())
+                        Log.i("HCE", returnArray.size.toString())
                         return returnArray + 0x90.toByte() + 0x00.toByte()
                     } else {
+                        Log.i("HCE", "retainment")
                         var returnArray = byteArrayOf(0x00.toByte())
                         for (tschunk in 1..tschunkSize) {
                             returnArray = returnArray + 0x00.toByte()
