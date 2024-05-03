@@ -38,8 +38,6 @@ class HCEService : HostApduService() {
         if (commandApdu != null) {
             Log.i("HCE", "APDU Command ${byteArrayToString(commandApdu)}")
             Log.i("HCE", "SlicedArray ${byteArrayToString(commandApdu.sliceArray(IntRange(0, 1)))}")
-            Log.i("HCE", (commandApdu.sliceArray(IntRange(0, 1)) contentEquals tokenAvailableStart).toString())
-            Log.i("HCE", (commandApdu.size >= 3).toString())
             if (commandApdu contentEquals hello) {
                 Log.i("HCE", "Heeeeloooo")
                 // intent =
@@ -71,10 +69,11 @@ class HCEService : HostApduService() {
                 } else {
                     return (byteArrayOf(0x00, 0x00, 0x6F.toByte(), 0x00))
                 }
-            } else if (commandApdu.sliceArray(IntRange(0, 1)) contentEquals getToken && commandApdu.size >= 6) {
+            } else if (commandApdu.sliceArray(IntRange(0, 1)) contentEquals getToken && commandApdu.size >= 5) {
                 Log.i("HCE", "Send data")
                 var tokenValue: String? = HCEService.tokenLiveData.value
                 if (tokenValue != null && tokenValue.isNotEmpty()) {
+                    Log.i("HCE", tokenValue)
                     var tokenByteArray = tokenValue.toByteArray()
                     var tokenIndex = commandApdu[2]
                     var tschunkSize = commandApdu[3]
@@ -86,10 +85,8 @@ class HCEService : HostApduService() {
                                     (tokenByteArray.size / tschunkSize) * (tokenIndex + 1),
                                 ),
                             )
-                        tokenIndex++
                         return returnArray + 0x90.toByte() + 0x00.toByte()
                     } else {
-                        tokenIndex = 0
                         var returnArray = byteArrayOf(0x00.toByte())
                         for (tschunk in 1..tschunkSize) {
                             returnArray = returnArray + 0x00.toByte()
