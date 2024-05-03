@@ -50,11 +50,20 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<void> getAccessToken() async {
-    String? accessToken = await loginKeykloak();
-    if (accessToken != null) {
-      print("Aaaaaaaaaaaa:" + accessToken);
+    if (accessToken.isEmpty) {
+      String? accessToken = await loginKeykloak();
+      setState(() {
+        this.accessToken = accessToken ?? "";
+      });
+      if (accessToken == null || accessToken.isNotEmpty) {
+        print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
+        var result = await hce
+            .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
+        print("after aaaaaaaaa");
+      }
+    } else {
       var result = await hce
-          .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
+          .invokeMethod<bool>("accessToken", {"accessToken": this.accessToken});
     }
   }
 
@@ -237,6 +246,11 @@ class _OpenDoorState extends State<OpenDoor> {
           padding: const EdgeInsets.all(8.0),
           child: ElevatedButton(
               onPressed: connectWifi, child: const Text("Mit Wifi verbinden")),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: ElevatedButton(
+              onPressed: getAccessToken, child: const Text("Keykloak login")),
         ),
       ],
     );

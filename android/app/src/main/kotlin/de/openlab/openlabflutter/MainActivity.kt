@@ -31,7 +31,9 @@ class MainActivity : FlutterActivity() {
             if (call.method == "startHCE") {
                 result.success(true)
             } else if (call.method == "accessToken") {
+                print("It called after get")
                 HCEService.tokenLiveData.setValue(call.argument<String>("accessToken"))
+                result.success(true)
             } else {
                 result.success(false)
             }
