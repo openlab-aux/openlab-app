@@ -95,11 +95,7 @@ class HCEService : HostApduService() {
                         return returnArray + 0x90.toByte() + 0x00.toByte()
                     } else {
                         Log.i("HCE", "retainment")
-                        var returnArray = byteArrayOf(0x00.toByte())
-                        for (tschunk in 1..tschunkSize) {
-                            returnArray = returnArray + 0x00.toByte()
-                        }
-                        return returnArray + 0x90.toByte() + 0x00.toByte()
+                        return tokenByteArray.sliceArray(IntRange(tschunkSize * tokenIndex, tokenByteArray.size - 1))
                     }
                 } else {
                     return (byteArrayOf(0x90.toByte(), 0x00))
