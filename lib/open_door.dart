@@ -50,21 +50,33 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<void> getAccessToken() async {
-    if (accessToken.isEmpty) {
-      String? accessToken = await loginKeykloak();
-      setState(() {
-        this.accessToken = accessToken ?? "";
-      });
-      if (accessToken == null || accessToken.isNotEmpty) {
-        print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
-        var result = await hce
-            .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
-        print("after aaaaaaaaa");
-      }
-    } else {
+    String? accessToken = await loginKeykloak();
+    if (accessToken != null || accessToken!.isNotEmpty) {
+      print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
       var result = await hce
-          .invokeMethod<bool>("accessToken", {"accessToken": this.accessToken});
+          .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
+      print("after aaaaaaaaa");
+    } else {
+      "Empty access token again";
     }
+    // if (accessToken.isEmpty) {
+    //   String? accessToken = await loginKeykloak();
+    //   setState(() {
+    //     this.accessToken = accessToken ?? "";
+    //   });
+    //   if (accessToken != null || accessToken!.isNotEmpty) {
+    //     print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
+    //     var result = await hce
+    //         .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
+    //     print("after aaaaaaaaa");
+    //   } else {
+    //     "Empty access token again";
+    //   }
+    // } else {
+    //   print("Using saved access token");
+    //   var result = await hce
+    //       .invokeMethod<bool>("accessToken", {"accessToken": this.accessToken});
+    // }
   }
 
   Future<String?> loginKeykloak() async {

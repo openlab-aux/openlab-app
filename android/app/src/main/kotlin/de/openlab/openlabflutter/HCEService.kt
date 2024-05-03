@@ -40,13 +40,13 @@ class HCEService : HostApduService() {
             Log.i("HCE", "SlicedArray ${byteArrayToString(commandApdu.sliceArray(IntRange(0, 1)))}")
             if (commandApdu contentEquals hello) {
                 Log.i("HCE", "Heeeeloooo")
-                // intent =
-                //     Intent(this, MainActivity::class.java).apply {
-                //         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                //         putExtra("hce", 1)
-                //     }
+                intent =
+                    Intent(this, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("hce", 1)
+                    }
 
-                // startActivity(intent)
+                startActivity(intent)
 
                 Log.i("HCE", "Returning APDU bytearray")
                 return byteArrayOf(0x90.toByte(), 0x00.toByte())
