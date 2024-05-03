@@ -48,6 +48,7 @@ dependencies:
   flutter_appauth: ^6.0.4
   flutter_launcher_icons: ^0.13.1
   crc: ^0.0.2
+  flutter_multi_formatter: ^2.12.8
 
 dev_dependencies:
   flutter_test:

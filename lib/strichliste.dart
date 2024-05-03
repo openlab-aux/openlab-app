@@ -6,6 +6,10 @@ import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:ndef/ndef.dart';
 import 'package:http/http.dart' as http;
+import 'package:openlabflutter/strichliste_add.dart';
+import 'package:pull_to_refresh/pull_to_refresh.dart';
+
+const String strichliste = "http://strichliste.lab/api";
 
 class Article {
   int articleId;
@@ -13,6 +17,25 @@ class Article {
   String name;
 
   Article(this.articleId, this.amount, this.name);
+}
+
+class Transaction {
+  int id;
+  int amount;
+  bool deleted;
+  String comment;
+  int? sender;
+  int? reciepient;
+  String created;
+  String articleName;
+  Transaction(this.id, this.amount, this.deleted, this.comment, this.created,
+      this.articleName);
+}
+
+class User {
+  int id;
+  String name;
+  User(this.id, this.name);
 }
 
 class Strichliste extends StatefulWidget {
@@ -25,20 +48,23 @@ class Strichliste extends StatefulWidget {
 class _StrichlisteState extends State<Strichliste> {
   final FlutterSecureStorage storage = const FlutterSecureStorage();
   String username = "";
-  String userId = "";
-  static const String strichliste = "http://strichliste.lab/api";
   int lastTransaction = -1;
+  Map<String, dynamic>? user;
+  List<Transaction>? transactions;
+  RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
 
-  Future<int> getUserId() async {
-    if (username.isEmpty) return -1;
+  Future<Map<String, dynamic>?> getUser() async {
+    print(username);
+    if (username.isEmpty) return null;
     var uri = Uri.parse(strichliste + "/user/search");
     uri = uri.replace(queryParameters: {"query": username, "limit": "1"});
     var result = await http.get(uri);
     if (result.statusCode == 200) {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
-      return body["users"].first["id"];
+      return body["users"].first;
     } else {
-      return -1;
+      return null;
     }
   }
 
@@ -51,6 +77,44 @@ class _StrichlisteState extends State<Strichliste> {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
       dynamic article = body["articles"].first;
       return Article(article["id"], article["amount"], article["name"]);
+    } else {
+      return null;
+    }
+  }
+
+  Future<List<User>?> getUsers() async {
+    var uri = Uri.parse(strichliste + "/user");
+    var result = await http.get(uri);
+    if (result.statusCode == 200) {
+      var body = jsonDecode(result.body) as Map<String, dynamic>;
+      List<dynamic> users = body["users"];
+      print(body);
+      return users.map((e) => User(e["id"], e["name"])).toList();
+    } else {
+      return null;
+    }
+  }
+
+  Future<List<Transaction>?> getTransactions(int userId) async {
+    var uri = Uri.parse(strichliste + "/user/${userId}/transaction");
+    var result = await http.get(uri);
+    if (result.statusCode == 200) {
+      var body = jsonDecode(result.body) as Map<String, dynamic>;
+      List<dynamic> transactions = body["transactions"];
+      print(body);
+      return transactions
+          .map((e) => Transaction(
+              e["id"],
+              e["amount"],
+              e["deleted"] ?? false,
+              e["comment"] ?? "",
+              e["created"],
+              e.containsKey("article") &&
+                      e["article"] != null &&
+                      e["article"].containsKey("name")
+                  ? e["article"]["name"]
+                  : ""))
+          .toList();
     } else {
       return null;
     }
@@ -117,22 +181,44 @@ class _StrichlisteState extends State<Strichliste> {
         String? barcode = match!.group(2);
         if (barcode == null) return;
         print(barcode);
-        int userId = await getUserId();
-        print(userId);
-        if (userId == -1) return;
-        Article? article = await getArticle(barcode);
-        if (article == null) return;
-        print(article.articleId);
-        await addTransaction(article, userId);
+        Map<String, dynamic>? user = await getUser();
+        if (user == null) {
+          int userId = user!["id"];
+          if (userId == -1) return;
+          Article? article = await getArticle(barcode);
+          if (article == null) return;
+          print(article.articleId);
+          await addTransaction(article, userId);
+        }
       }
     }
   }
 
   void initValues() async {
-    String u = await storage.read(key: "username") ?? "";
+    String u = await storage.read(key: "nickname") ?? "";
+
+    print("username: " + u);
     setState(() {
       this.username = u;
     });
+    await update();
+  }
+
+  Future<void> update() async {
+    print("updating");
+
+    Map<String, dynamic>? user = await getUser();
+    print(user);
+    setState(() {
+      this.user = user;
+    });
+    if (user != null) {
+      List<Transaction>? transactions = await getTransactions(user!["id"]);
+      setState(() {
+        this.transactions = transactions;
+      });
+    }
+    _refreshController.refreshCompleted();
   }
 
   @override
@@ -141,7 +227,6 @@ class _StrichlisteState extends State<Strichliste> {
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       initValues();
-      getUserId();
       readNFC();
     });
   }
@@ -149,26 +234,69 @@ class _StrichlisteState extends State<Strichliste> {
   @override
   Widget build(BuildContext context) {
     readNFC();
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Halte dein Smartphone an den passenden NFC Tag um ein Buchung durchzuführen",
-              style: TextStyle(
-                fontSize: 30,
-              ),
-              textAlign: TextAlign.center,
-            ),
+    List<Widget> transactionsView = [];
+    if (transactions == null || transactions!.isEmpty) {
+      transactionsView.add(Center(
+        child: Text("Keine Transaktionen vorhanden"),
+      ));
+    } else {
+      for (Transaction transaction in transactions!) {
+        transactionsView.add(ListTile(
+          leading: Text(
+            "${(transaction.amount / 100).toStringAsFixed(2)}€",
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: transaction.amount < 0 ? Colors.red : Colors.green),
           ),
-          Icon(
-            Icons.nfc,
-            size: 200,
-          )
-        ],
+          title: Text(transaction.articleName.isEmpty
+              ? transaction.comment
+              : transaction.articleName),
+          trailing: Text(transaction.created),
+        ));
+      }
+    }
+    return Stack(children: [
+      SmartRefresher(
+        enablePullDown: true,
+        controller: _refreshController,
+        onRefresh: update,
+        child: ListView(children: [
+          Card(
+              child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  "Halte dein Smartphone an den passenden\nNFC Tag um ein Buchung durchzuführen",
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Icon(
+                Icons.nfc,
+                size: 20,
+              )
+            ],
+          )),
+          for (Widget trans in transactionsView) trans
+        ]),
       ),
-    );
+      Positioned(
+        bottom: 20,
+        right: 20,
+        child: FloatingActionButton(
+          child: Icon(Icons.add),
+          onPressed: () async {
+            List<User>? users = await getUsers();
+            if (user != null) {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) =>
+                    StrichlisteAdd(userId: user!["id"], users: users),
+              ));
+            }
+          },
+        ),
+      )
+    ]);
   }
 }
