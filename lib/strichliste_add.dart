@@ -10,8 +10,9 @@ List<int> buttonRanges = [50, 100, 200, 500, 1000, 1500, 2000];
 class StrichlisteAdd extends StatefulWidget {
   List<User>? users;
   int userId;
+  int? recipientId;
 
-  StrichlisteAdd({required this.users, required this.userId});
+  StrichlisteAdd({required this.users, required this.userId, this.recipientId});
 
   @override
   _StrichlisteAddState createState() => _StrichlisteAddState();
@@ -60,6 +61,10 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
       body["recipientId"] = reciepient!.id;
       body["amount"] = "-${body["amount"]}";
     }
+    if (widget.recipientId != null) {
+      body["recipientId"] = widget.recipientId!;
+      body["amount"] = "-${body["amount"]}";
+    }
     print(body);
     var result = await http.post(uri,
         headers: {"Content-Type": "application/json"}, body: jsonEncode(body));
@@ -86,41 +91,42 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
           child: Form(
             child: ListView(
               children: [
-                Autocomplete<String>(
-                  fieldViewBuilder: (context, textEditingController, focusNode,
-                      onFieldSubmitted) {
-                    return TextFormField(
-                        controller: textEditingController,
-                        focusNode: focusNode,
-                        onChanged: (value) {
-                          setState(() {
-                            reciepient = widget.users!
-                                .where(
-                                  (element) => element.name
-                                      .toLowerCase()
-                                      .contains(value.toLowerCase()),
-                                )
-                                .firstOrNull;
-                          });
-                        },
-                        decoration: InputDecoration(
-                            hintText: "Empfänger",
-                            border: OutlineInputBorder()));
-                  },
-                  optionsBuilder: (textEditingValue) {
-                    if (textEditingValue.text.isEmpty || widget.users == null) {
-                      return widget.users!.map((e) => e.name);
-                    } else {
-                      return widget.users!
-                          .where(
-                            (element) => element.name
-                                .toLowerCase()
-                                .contains(textEditingValue.text.toLowerCase()),
-                          )
-                          .map((e) => e.name);
-                    }
-                  },
-                ),
+                if (widget.recipientId == null)
+                  Autocomplete<String>(
+                    fieldViewBuilder: (context, textEditingController,
+                        focusNode, onFieldSubmitted) {
+                      return TextFormField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+                          onChanged: (value) {
+                            setState(() {
+                              reciepient = widget.users!
+                                  .where(
+                                    (element) => element.name
+                                        .toLowerCase()
+                                        .contains(value.toLowerCase()),
+                                  )
+                                  .firstOrNull;
+                            });
+                          },
+                          decoration: InputDecoration(
+                              hintText: "Empfänger",
+                              border: OutlineInputBorder()));
+                    },
+                    optionsBuilder: (textEditingValue) {
+                      if (textEditingValue.text.isEmpty ||
+                          widget.users == null) {
+                        return widget.users!.map((e) => e.name);
+                      } else {
+                        return widget.users!
+                            .where(
+                              (element) => element.name.toLowerCase().contains(
+                                  textEditingValue.text.toLowerCase()),
+                            )
+                            .map((e) => e.name);
+                      }
+                    },
+                  ),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Wrap(

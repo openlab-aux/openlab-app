@@ -52,17 +52,20 @@ class _StrichlisteState extends State<Strichliste> {
   Map<String, dynamic>? user;
   List<Transaction>? transactions;
   RefreshController _refreshController =
-      RefreshController(initialRefresh: false);
+      RefreshController(initialRefresh: true);
 
   Future<Map<String, dynamic>?> getUser() async {
     print(username);
     if (username.isEmpty) return null;
     var uri = Uri.parse(strichliste + "/user/search");
-    uri = uri.replace(queryParameters: {"query": username, "limit": "1"});
+    uri = uri.replace(queryParameters: {"query": username});
     var result = await http.get(uri);
     if (result.statusCode == 200) {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
-      return body["users"].first;
+      print(body);
+      return body["users"]
+          .where((e) => !e["name"].toString().startsWith("P-"))
+          .first;
     } else {
       return null;
     }
@@ -83,13 +86,17 @@ class _StrichlisteState extends State<Strichliste> {
   }
 
   Future<List<User>?> getUsers() async {
+    print("Get user");
     var uri = Uri.parse(strichliste + "/user");
     var result = await http.get(uri);
     if (result.statusCode == 200) {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
       List<dynamic> users = body["users"];
       print(body);
-      return users.map((e) => User(e["id"], e["name"])).toList();
+      return users
+          .map((e) => User(e["id"], e["name"]))
+          .where((element) => !element.name.toString().startsWith("P-"))
+          .toList();
     } else {
       return null;
     }
@@ -101,7 +108,7 @@ class _StrichlisteState extends State<Strichliste> {
     if (result.statusCode == 200) {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
       List<dynamic> transactions = body["transactions"];
-      print(body);
+      print("transaction body ${body}");
       return transactions
           .map((e) => Transaction(
               e["id"],
@@ -288,6 +295,7 @@ class _StrichlisteState extends State<Strichliste> {
           child: Icon(Icons.add),
           onPressed: () async {
             List<User>? users = await getUsers();
+            print(users);
             if (user != null) {
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (context) =>

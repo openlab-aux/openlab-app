@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openlabflutter/open_door.dart';
 import 'package:openlabflutter/presence.dart';
+import 'package:openlabflutter/projects.dart';
 import 'package:openlabflutter/settings.dart';
 import 'dart:typed_data';
 
@@ -92,6 +93,9 @@ class _MainWidgetState extends State<MainWidget> {
         widget = Strichliste();
         break;
       case 3:
+        widget = Projects();
+        break;
+      case 4:
         widget = Settings();
         break;
       default:
@@ -123,8 +127,13 @@ class _MainWidgetState extends State<MainWidget> {
               backgroundColor: Color.fromRGBO(0, 104, 69, 1),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.school),
+              icon: Icon(Icons.euro),
               label: 'Strichliste',
+              backgroundColor: Color.fromRGBO(0, 104, 69, 1),
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.group),
+              label: 'Projekte',
               backgroundColor: Color.fromRGBO(0, 104, 69, 1),
             ),
             BottomNavigationBarItem(
