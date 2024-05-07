@@ -110,11 +110,20 @@ class _ProjectsState extends State<Projects> {
         projectsView.add(ListTile(
           onTap: () async {
             print(username);
-            if (user == null) return;
-            await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => StrichlisteAdd(
-                    users: [], userId: user!["id"], recipientId: project.id)));
-            _refreshController.requestRefresh();
+            if (user != null) {
+              await Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => StrichlisteAdd(
+                      users: [],
+                      userId: user!["id"],
+                      recipientId: project.id)));
+              _refreshController.requestRefresh();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+                backgroundColor: Colors.red,
+              ));
+            }
           },
           leading: Text(
             "${(project.balance / 100).toStringAsFixed(2)}€",

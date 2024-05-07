@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:ndef/ndef.dart';
 import 'package:http/http.dart' as http;
+import 'package:openlabflutter/scanner.dart';
 import 'package:openlabflutter/strichliste_add.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 
@@ -129,6 +132,7 @@ class _StrichlisteState extends State<Strichliste> {
 
   Future<void> addTransaction(Article? article, int userId) async {
     if (article == null || userId == -1) return;
+    print("Addding transaction!!");
     var uri = Uri.parse(strichliste + "/user/${userId}/transaction");
     var result = await http.post(uri,
         headers: {"Content-Type": "application/json"},
@@ -151,6 +155,12 @@ class _StrichlisteState extends State<Strichliste> {
             undoTransaction(transactionId, userId);
           },
         ),
+      ));
+    } else {
+      print(result.body);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Konnte Artikel nicht hinzufügen"),
+        backgroundColor: Colors.red,
       ));
     }
   }
@@ -200,6 +210,8 @@ class _StrichlisteState extends State<Strichliste> {
       }
     }
   }
+
+  Future<void> scanArticle() async {}
 
   void initValues() async {
     String u = await storage.read(key: "nickname") ?? "";
@@ -292,6 +304,7 @@ class _StrichlisteState extends State<Strichliste> {
         bottom: 20,
         right: 20,
         child: FloatingActionButton(
+          heroTag: "add",
           child: Icon(Icons.add),
           onPressed: () async {
             List<User>? users = await getUsers();
@@ -302,6 +315,58 @@ class _StrichlisteState extends State<Strichliste> {
                     StrichlisteAdd(userId: user!["id"], users: users),
               ));
               _refreshController.requestRefresh();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+                backgroundColor: Colors.red,
+              ));
+            }
+          },
+        ),
+      ),
+      Positioned(
+        bottom: 90,
+        right: 20,
+        child: FloatingActionButton(
+          heroTag: "barcodeScan",
+          child: Icon(Icons.barcode_reader),
+          onPressed: () async {
+            List<User>? users = await getUsers();
+            print(users);
+            if (user != null) {
+              BarcodeCapture? capture =
+                  await Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => Scanner(),
+              ));
+              if (capture != null &&
+                  capture.barcodes.isNotEmpty &&
+                  capture.barcodes.first.rawValue != null &&
+                  int.tryParse(capture.barcodes.first.rawValue!) != null) {
+                Article? article =
+                    await getArticle(capture.barcodes.first.rawValue!);
+                if (article != null) {
+                  await addTransaction(article, user!["id"]);
+                  print("After add transaction");
+                  _refreshController.requestRefresh();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text("Konnte Artikel nicht finden"),
+                    backgroundColor: Colors.red,
+                  ));
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text("Etwas ist leider schief gelaufen"),
+                  backgroundColor: Colors.red,
+                ));
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+                backgroundColor: Colors.red,
+              ));
             }
           },
         ),

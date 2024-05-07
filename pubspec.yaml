@@ -49,6 +49,7 @@ dependencies:
   flutter_launcher_icons: ^0.13.1
   crc: ^0.0.2
   flutter_multi_formatter: ^2.12.8
+  mobile_scanner: ^5.1.0
 
 dev_dependencies:
   flutter_test:
