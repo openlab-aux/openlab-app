@@ -12,7 +12,7 @@ class StrichlisteAdd extends StatefulWidget {
   int userId;
   int? recipientId;
 
-  StrichlisteAdd({required this.users, required this.userId, this.recipientId});
+  StrichlisteAdd({super.key, required this.users, required this.userId, this.recipientId});
 
   @override
   _StrichlisteAddState createState() => _StrichlisteAddState();

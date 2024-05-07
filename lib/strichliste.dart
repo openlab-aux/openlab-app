@@ -297,10 +297,11 @@ class _StrichlisteState extends State<Strichliste> {
             List<User>? users = await getUsers();
             print(users);
             if (user != null) {
-              Navigator.of(context).push(MaterialPageRoute(
+              await Navigator.of(context).push(MaterialPageRoute(
                 builder: (context) =>
                     StrichlisteAdd(userId: user!["id"], users: users),
               ));
+              _refreshController.requestRefresh();
             }
           },
         ),

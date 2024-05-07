@@ -108,12 +108,13 @@ class _ProjectsState extends State<Projects> {
     } else {
       for (Project project in projects!) {
         projectsView.add(ListTile(
-          onTap: () {
+          onTap: () async {
             print(username);
             if (user == null) return;
-            Navigator.of(context).push(MaterialPageRoute(
+            await Navigator.of(context).push(MaterialPageRoute(
                 builder: (context) => StrichlisteAdd(
                     users: [], userId: user!["id"], recipientId: project.id)));
+            _refreshController.requestRefresh();
           },
           leading: Text(
             "${(project.balance / 100).toStringAsFixed(2)}€",
