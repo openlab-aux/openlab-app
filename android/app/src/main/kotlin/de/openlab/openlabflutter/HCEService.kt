@@ -72,7 +72,7 @@ class HCEService : HostApduService() {
                     // TODO: Why is -1 neeeded????
                     return byteArrayOf(
                         Math.floor(tokenByteArray.size / tschunkSize.toDouble()).toInt().toByte(),
-                        ((tokenByteArray.size % tschunkSize) - 1).toByte(),
+                        ((tokenByteArray.size % tschunkSize)).toByte(),
                     ) + 0x90.toByte() + 0x00.toByte()
                 } else {
                     return (byteArrayOf(0x00, 0x00, 0x6F.toByte(), 0x00))
@@ -88,22 +88,24 @@ class HCEService : HostApduService() {
                     Log.i("HCE", tokenByteArray.size.toString())
                     Log.i("HCE", tschunkSize.toString())
                     Log.i("HCE", tokenIndex.toString())
+                    Log.i("HCE", (tschunkSize * tokenIndex).toString())
+                    Log.i("HCE", (tschunkSize * (tokenIndex + 1)).toString())
+                    Log.i("HCE", (tokenByteArray.size-1).toString())
                     if (tokenByteArray.size >= (tschunkSize) * (tokenIndex + 1)) {
                         var returnArray =
                             tokenByteArray.sliceArray(
                                 IntRange(
                                     tschunkSize * tokenIndex,
-                                    tschunkSize * (tokenIndex + 1),
+                                    tschunkSize * (tokenIndex + 1) -1,
                                 ),
                             )
 
-                        Log.i("HCE", (tschunkSize * tokenIndex).toString())
-                        Log.i("HCE", (tschunkSize * (tokenIndex + 1)).toString())
                         Log.i("HCE", returnArray.size.toString())
                         return returnArray + 0x90.toByte() + 0x00.toByte()
                     } else {
                         Log.i("HCE", "retainment")
-                        return tokenByteArray.sliceArray(IntRange(tschunkSize * tokenIndex, tokenByteArray.size)) + 0x90.toByte() + 0x00.toByte() 
+                        Log.i("HCE", String(tokenByteArray.sliceArray(IntRange(tschunkSize * tokenIndex, tokenByteArray.size-1))))
+                        return tokenByteArray.sliceArray(IntRange(tschunkSize * tokenIndex, tokenByteArray.size-1)) + 0x90.toByte() + 0x00.toByte() 
                     }
                 } else {
                     return (byteArrayOf(0x90.toByte(), 0x00))
