@@ -1,4 +1,4 @@
-name: openlab_flutter
+name: openlabflutter
 description: A new Flutter project.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -44,6 +44,13 @@ dependencies:
   wifi_iot: ^0.3.19
   flutter_nfc_kit: ^3.4.2
   ndef: ^0.3.3
+  keycloak_wrapper: ^1.1.0
+  flutter_appauth: ^6.0.4
+  flutter_launcher_icons: ^0.13.1
+  crc: ^0.0.2
+  flutter_multi_formatter: ^2.12.8
+  mobile_scanner: ^5.1.0
+  jwt_decoder: ^2.0.1
 
 dev_dependencies:
   flutter_test:
@@ -67,7 +74,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
+  assets:
+    - assets/icon/icon.png
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 
@@ -96,3 +104,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/icon.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21

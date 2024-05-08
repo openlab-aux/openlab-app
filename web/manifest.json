@@ -1,6 +1,6 @@
 {
-    "name": "openlab_flutter",
-    "short_name": "openlab_flutter",
+    "name": "openlabflutter",
+    "short_name": "openlabflutter",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
