@@ -11,6 +11,7 @@ import 'package:retry/retry.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 
 const hce = MethodChannel("hce");
@@ -53,8 +54,11 @@ class _OpenDoorState extends State<OpenDoor> {
     String? accessToken = await loginKeykloak();
     if (accessToken != null || accessToken!.isNotEmpty) {
       print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
-      var result = await hce
-          .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
+      DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
+      var result = await hce.invokeMethod<bool>("accessToken", {
+        "accessToken": accessToken,
+        "expirationDate": expirationDate.toIso8601String()
+      });
       print("after aaaaaaaaa");
     } else {
       "Empty access token again";

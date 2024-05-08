@@ -56,6 +56,7 @@ class _StrichlisteState extends State<Strichliste> {
   List<Transaction>? transactions;
   RefreshController _refreshController =
       RefreshController(initialRefresh: true);
+  bool nfcAvailable = true;
 
   Future<Map<String, dynamic>?> getUser() async {
     print(username);
@@ -181,8 +182,17 @@ class _StrichlisteState extends State<Strichliste> {
 
     if (availability != NFCAvailability.available) {
       // oh-no
+      setState(() {
+        nfcAvailable = false;
+      });
       print("NFC not available");
-    } // timeout only works on Android, while the latter two messages are only for iOS
+      return;
+    } else {
+      // timeout only works on Android, while the latter two messages are only for iOS
+      setState(() {
+        nfcAvailable = true;
+      });
+    }
     var tag = await FlutterNfcKit.poll(
         timeout: Duration(days: 9),
         iosMultipleTagMessage: "Multiple tags found!",
@@ -238,6 +248,7 @@ class _StrichlisteState extends State<Strichliste> {
       });
     }
     _refreshController.refreshCompleted();
+    readNFC();
   }
 
   @override
@@ -252,7 +263,6 @@ class _StrichlisteState extends State<Strichliste> {
 
   @override
   Widget build(BuildContext context) {
-    readNFC();
     List<Widget> transactionsView = [];
     if (transactions == null || transactions!.isEmpty) {
       transactionsView.add(Center(
@@ -280,23 +290,24 @@ class _StrichlisteState extends State<Strichliste> {
         controller: _refreshController,
         onRefresh: update,
         child: ListView(children: [
-          Card(
-              child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  "Halte dein Smartphone an den passenden\nNFC Tag um ein Buchung durchzuführen",
-                  textAlign: TextAlign.center,
+          if (nfcAvailable)
+            Card(
+                child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    "Halte dein Smartphone an den passenden\nNFC Tag um ein Buchung durchzuführen",
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.nfc,
-                size: 20,
-              )
-            ],
-          )),
+                Icon(
+                  Icons.nfc,
+                  size: 20,
+                )
+              ],
+            )),
           for (Widget trans in transactionsView) trans
         ]),
       ),

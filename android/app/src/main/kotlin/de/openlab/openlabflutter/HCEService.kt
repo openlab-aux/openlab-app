@@ -4,6 +4,7 @@ import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
+import java.util.Date
 import kotlin.byteArrayOf
 import kotlin.text.toByteArray
 
@@ -20,6 +21,7 @@ class HCEService : HostApduService() {
 
     companion object {
         public val tokenLiveData = MutableLiveData<String>()
+        public val expirationDate = MutableLiveData<Date>()
     }
 
     public fun byteArrayToString(array: ByteArray): String {
@@ -55,7 +57,13 @@ class HCEService : HostApduService() {
                 var tokenValue: String? = HCEService.tokenLiveData.value
                 var tschunkSize = commandApdu[2]
                 Log.i("HCE", "Tschunksize: " + tschunkSize.toString())
-                if (tokenValue != null && tokenValue.isNotEmpty()) {
+                var expirationDate: Date? = HCEService.expirationDate.value
+                Log.i("HCE", expirationDate.toString())
+                Log.i("HCE", Date().toString())
+                if (expirationDate != null) {
+                    Log.i("HCE", expirationDate.compareTo(Date()).toString())
+                }
+                if (tokenValue != null && tokenValue.isNotEmpty() && expirationDate != null && expirationDate.compareTo(Date()) > 0) {
                     var tokenByteArray = tokenValue.toByteArray()
                     Log.i("HCE", "Thunkcount: " + Math.floor(tokenByteArray.size / tschunkSize.toDouble()).toInt().toByte().toString())
                     // TODO: Why is it 1 too much?????
@@ -95,7 +103,7 @@ class HCEService : HostApduService() {
                         return returnArray + 0x90.toByte() + 0x00.toByte()
                     } else {
                         Log.i("HCE", "retainment")
-                        return tokenByteArray.sliceArray(IntRange(tschunkSize * tokenIndex, tokenByteArray.size - 1))
+                        return tokenByteArray.sliceArray(IntRange(tschunkSize * tokenIndex, tokenByteArray.size)) + 0x90.toByte() + 0x00.toByte() 
                     }
                 } else {
                     return (byteArrayOf(0x90.toByte(), 0x00))

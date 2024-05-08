@@ -50,6 +50,7 @@ dependencies:
   crc: ^0.0.2
   flutter_multi_formatter: ^2.12.8
   mobile_scanner: ^5.1.0
+  jwt_decoder: ^2.0.1
 
 dev_dependencies:
   flutter_test:

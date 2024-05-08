@@ -7,6 +7,8 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.GeneratedPluginRegistrant
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class MainActivity : FlutterActivity() {
     private val channel: MethodChannel by lazy { MethodChannel(flutterEngine!!.dartExecutor.binaryMessenger, "hce") }
@@ -33,6 +35,9 @@ class MainActivity : FlutterActivity() {
             } else if (call.method == "accessToken") {
                 print("It called after get")
                 HCEService.tokenLiveData.setValue(call.argument<String>("accessToken"))
+                val sdf: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS")
+                Log.i("HCE", "MethodCall: " + sdf.parse(call.argument<String>("expirationDate")).toString())
+                HCEService.expirationDate.setValue(sdf.parse(call.argument<String>("expirationDate")))
                 result.success(true)
             } else {
                 result.success(false)
@@ -52,7 +57,10 @@ class MainActivity : FlutterActivity() {
             val command = intent.getIntExtra("hce", -1)
             if (command == 1) {
                 Log.i("HCE", "command 1")
-                channel.invokeMethod("getAccessToken", null)
+                val expirationDate: Date? = HCEService.expirationDate.value
+                if (expirationDate == null || expirationDate.compareTo(Date()) > 0) {
+                    channel.invokeMethod("getAccessToken", null)
+                }
             }
         }
 }
