@@ -1,0 +1,57 @@
+name: Fdroid Releases
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          version_number=$(cat version.yml | sed 's/\(---\|major: \|minor: \|patch: \|\)//g' | sed -z 's/\n/./g;s/,$/\n/' | sed 's/^\.//g' | sed 's/\.$//g' )
+          echo "${version_number}"
+          echo "version_number=${version_number}" >> $GITHUB_ENV
+          echo "${{ env.version_number }}"
+      - run: |
+          version_code=$(cat pubspec.yaml | grep "version:" | sed 's/version:.*+//g')
+          echo "version_code=${version_code}" >> $GITHUB_ENV
+          echo "${{ env.version_code }}"
+      - run: |
+          git clone https://gitlab.com/yonggan/fdroiddata.git
+          cd fdroiddata
+          git checkout de.openlab.openlabflutter
+          cat metadata/de.openlab.openlabflutter.yml
+          head -n -2 metadata/de.openlab.openlabflutter.yml > metadata/de.openlab.openlabflutter.yml.tmp
+          mv metadata/de.openlab.openlabflutter.yml.tmp metadata/de.openlab.openlabflutter.yml
+          if grep -wq "versionName: ${{ env.version_number }}" metadata/de.openlab.openlabflutter.yml; then exit 0;elif grep -wq "versionCode: ${{ env.version_code }}" metadata/de.openlab.openlabflutter.yml; then exit 0;fi
+          sed -i -e '$a\' metadata/de.openlab.openlabflutter.yml
+          echo "  - versionName: ${{ env.version_number }}" >> metadata/de.openlab.openlabflutter.yml
+          echo "    versionCode: ${{ env.version_code }}" >> metadata/de.openlab.openlabflutter.yml
+          echo "    commit: ${{ env.version_number }}" >> metadata/de.openlab.openlabflutter.yml
+          echo "    output: build/app/outputs/flutter-apk/app-release.apk" >> metadata/de.openlab.openlabflutter.yml
+          echo "    srclibs:" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - flutter@3.19.0" >> metadata/de.openlab.openlabflutter.yml
+          echo "    rm:" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - ios" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - linux" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - macos" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - test" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - web" >> metadata/de.openlab.openlabflutter.yml
+          echo "      - windows" >> metadata/de.openlab.openlabflutter.yml
+          echo "    build:" >> metadata/de.openlab.openlabflutter.yml
+          echo '      - $$flutter$$/bin/flutter config --no-analytics' >> metadata/de.openlab.openlabflutter.yml
+          echo '      - $$flutter$$/bin/flutter packages pub get' >> metadata/de.openlab.openlabflutter.yml
+          echo '      - $$flutter$$/bin/flutter build apk' >> metadata/de.openlab.openlabflutter.yml
+          echo "CurrentVersion: ${{ env.version_number }}" >> metadata/de.openlab.openlabflutter.yml
+          echo "CurrentVersionCode: ${{ env.version_code }}" >> metadata/de.openlab.openlabflutter.yml
+          cat metadata/de.openlab.openlabflutter.yml
+          git add .
+          git config user.email "yonggan@obco.pro"
+          git config user.name "Yonggan"
+          git commit -m "Bump top version ${{ env.version_number }}"
+          git remote add gitlab https://${{ secrets.GITLAB_USERNAME }}:${{ secrets.GITLAB_TOKEN }}@gitlab.com/yonggan/fdroiddata.git
+          git push gitlab de.openlab.openlabflutter
