@@ -201,22 +201,34 @@ class _StrichlisteState extends State<Strichliste> {
     List<NDEFRecord> result = await FlutterNfcKit.readNDEFRecords();
     if (result.length > 0) {
       String payload = String.fromCharCodes(result.first.payload ?? []);
+      print("NFC payload: " + payload);
       RegExp validMessage = RegExp(r'(\w+)\:(\d+)');
       Match? match = validMessage.firstMatch(payload);
-      if (match == null) return;
-      if (match!.group(1) == "enStl") {
+      if (match != null && match!.group(1) == "enStl") {
         String? barcode = match!.group(2);
         if (barcode == null) return;
         print(barcode);
         Map<String, dynamic>? user = await getUser();
-        if (user == null) {
+        if (user != null) {
           int userId = user!["id"];
+          print(userId);
           if (userId == -1) return;
           Article? article = await getArticle(barcode);
           if (article == null) return;
           print(article.articleId);
           await addTransaction(article, userId);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+            backgroundColor: Colors.red,
+          ));
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("Kein Strichlisten-NFC Tag"),
+          backgroundColor: Colors.red,
+        ));
       }
     }
   }
