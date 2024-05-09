@@ -217,6 +217,7 @@ class _StrichlisteState extends State<Strichliste> {
           if (article == null) return;
           print(article.articleId);
           await addTransaction(article, userId);
+          update();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
