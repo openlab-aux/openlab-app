@@ -115,7 +115,8 @@ class _ProjectsState extends State<Projects> {
                   builder: (context) => StrichlisteAdd(
                       users: [],
                       userId: user!["id"],
-                      recipientId: project.id)));
+                      recipientId: project.id,
+                      type: StrichlisteAddType.Project)));
               _refreshController.requestRefresh();
             } else {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(

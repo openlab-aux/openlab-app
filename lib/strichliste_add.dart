@@ -7,12 +7,20 @@ import 'package:http/http.dart' as http;
 
 List<int> buttonRanges = [50, 100, 200, 500, 1000, 1500, 2000];
 
+enum StrichlisteAddType { Send, Topup, Buy, Project }
+
 class StrichlisteAdd extends StatefulWidget {
   List<User>? users;
   int userId;
   int? recipientId;
+  StrichlisteAddType type;
 
-  StrichlisteAdd({super.key, required this.users, required this.userId, this.recipientId});
+  StrichlisteAdd(
+      {super.key,
+      required this.users,
+      required this.userId,
+      this.recipientId,
+      required this.type});
 
   @override
   _StrichlisteAddState createState() => _StrichlisteAddState();
@@ -27,51 +35,48 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    amountController.text = "0.00 €";
+    amountController.text = "";
+    setState(() {
+      reciepient = widget.users!
+          .where(
+            (element) => element.id == widget.recipientId,
+          )
+          .firstOrNull;
+    });
   }
 
   void changeAmount(String amount) {
-    print(amountController.text.replaceAllMapped(
-      RegExp(r"[€\.,]"),
-      (match) => "",
-    ));
-
-    amountController.text = ((int.parse(amountController.text.replaceAllMapped(
-                      RegExp(r"[€\.,]"),
-                      (match) => "",
-                    )) +
+    if (amountController.text.isEmpty) {
+      amountController.text = (int.parse(amount) / 100).toString();
+      return;
+    }
+    if ((double.parse(amountController.text.replaceAll(",", "")) * 100) +
+            int.parse(amount) <
+        0) return;
+    amountController.text =
+        (((double.parse(amountController.text.replaceAll(",", "")) * 100) +
                     int.parse(amount)) /
                 100)
-            .toStringAsFixed(2) +
-        " €";
+            .toStringAsFixed(2);
   }
 
   Future<void> sendMoney() async {
-    var uri = Uri.parse(strichliste + "/user/${widget.userId}/transaction");
-    var amount = int.parse(amountController.text.replaceAllMapped(
-      RegExp(r"[€\.,]"),
-      (match) => "",
-    ));
+    var uri = Uri.parse("$strichliste/user/${widget.userId}/transaction");
+    int amount = (double.parse(amountController.text.replaceAll(",", "")) * 100)
+        .ceil()
+        .toInt();
     var body = {
-      "amount": amount,
+      "amount": widget.type == StrichlisteAddType.Topup ? amount : -amount,
       "quantity": 1,
       "comment": comment,
     };
-    if (reciepient != null) {
-      body["recipientId"] = reciepient!.id;
-      body["amount"] = "-${body["amount"]}";
-    }
     if (widget.recipientId != null) {
-      body["recipientId"] = widget.recipientId!;
-      body["amount"] = "-${body["amount"]}";
-    }
-    print(body);
+      body["recipientId"] = widget.recipientId.toString();
+    } else if (reciepient != null)
+      body["recipientId"] = reciepient!.id.toString();
     var result = await http.post(uri,
         headers: {"Content-Type": "application/json"}, body: jsonEncode(body));
     if (result.statusCode == 200) {
-      print(result.body);
-      var body = jsonDecode(result.body) as Map<String, dynamic>;
-      int transactionId = body["transaction"]["id"];
       Navigator.of(context).pop();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -83,15 +88,33 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
 
   @override
   Widget build(BuildContext context) {
+    var header = "Spenden";
+    switch (widget.type) {
+      case StrichlisteAddType.Send:
+        header = "Geld senden";
+        break;
+      case StrichlisteAddType.Project:
+        header = "Projekt unterstützen";
+        break;
+      case StrichlisteAddType.Topup:
+        header = "Geld aufladen";
+        break;
+      case StrichlisteAddType.Buy:
+        header = "Spenden";
+        break;
+      default:
+        header = "Spenden";
+        break;
+    }
     return Scaffold(
-      appBar: AppBar(title: Text("Geld senden")),
+      appBar: AppBar(title: Text(header)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: Form(
             child: ListView(
               children: [
-                if (widget.recipientId == null)
+                if (widget.type == StrichlisteAddType.Send)
                   Autocomplete<String>(
                     fieldViewBuilder: (context, textEditingController,
                         focusNode, onFieldSubmitted) {
@@ -109,7 +132,7 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
                                   .firstOrNull;
                             });
                           },
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                               hintText: "Empfänger",
                               border: OutlineInputBorder()));
                     },
@@ -127,49 +150,61 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
                       }
                     },
                   ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Wrap(
-                    children: [
-                      for (int i in buttonRanges)
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: ElevatedButton(
-                            onPressed: () => changeAmount(i.toString()),
-                            child: Text(
-                              "+ ${(i / 100).toStringAsFixed(2)}€",
-                              style: TextStyle(color: Colors.white),
+                if (widget.type == StrichlisteAddType.Topup)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Wrap(
+                      children: [
+                        for (int i in buttonRanges)
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: ElevatedButton(
+                              onPressed: () => changeAmount(i.toString()),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green),
+                              child: Text(
+                                "+ ${(i / 100).toStringAsFixed(2)}€",
+                                style: const TextStyle(color: Colors.white),
+                              ),
                             ),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green),
-                          ),
-                        )
-                    ],
+                          )
+                      ],
+                    ),
                   ),
-                ),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.remove),
+                        icon: const Icon(Icons.remove),
                         onPressed: () => changeAmount((-100).toString()),
                       ),
                       Expanded(
                         child: TextFormField(
+                          keyboardType: const TextInputType.numberWithOptions(
+                              signed: true),
                           controller: amountController,
-                          decoration: InputDecoration(
-                              hintText: "Amount", border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                              hintText: "Amount",
+                              border: OutlineInputBorder(),
+                              suffixIcon: Icon(Icons.euro)),
+                          onChanged: (value) {
+                            if (double.parse(value.replaceAll(",", "")) < 0) {
+                              amountController.value == "0.00";
+                            }
+                            amountController.text =
+                                amountController.text.replaceAll("-", "");
+                          },
                           inputFormatters: [
                             CurrencyInputFormatter(
-                                thousandSeparator: ThousandSeparator.Period,
+                                thousandSeparator: ThousandSeparator.Comma,
                                 mantissaLength: 2,
-                                trailingSymbol: "€")
+                                trailingSymbol: "")
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.add),
+                        icon: const Icon(Icons.add),
                         onPressed: () => changeAmount((100).toString()),
                       ),
                     ],
@@ -177,28 +212,8 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: Wrap(
-                    children: [
-                      for (int i in buttonRanges)
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: ElevatedButton(
-                            onPressed: () => changeAmount((-i).toString()),
-                            child: Text(
-                              "- ${(i / 100).toStringAsFixed(2)}€",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red),
-                          ),
-                        )
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
                   child: TextFormField(
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                         hintText: "Kommentar", border: OutlineInputBorder()),
                     onChanged: (value) {},
                   ),
@@ -207,7 +222,8 @@ class _StrichlisteAddState extends State<StrichlisteAdd> {
                   padding: const EdgeInsets.all(8.0),
                   child: ElevatedButton(
                     onPressed: sendMoney,
-                    child: Text("Katsching!", style: TextStyle(fontSize: 30)),
+                    child: const Text("Katsching!",
+                        style: TextStyle(fontSize: 30)),
                   ),
                 )
               ],

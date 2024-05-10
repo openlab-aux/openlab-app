@@ -58,10 +58,37 @@ class _StrichlisteState extends State<Strichliste> {
       RefreshController(initialRefresh: true);
   bool nfcAvailable = true;
 
+  Future<void> update() async {
+    print("updating");
+
+    Map<String, dynamic>? user = await getUser();
+    print(user);
+    setState(() {
+      this.user = user;
+    });
+    if (user != null) {
+      List<Transaction>? transactions = await getTransactions(user!["id"]);
+      if (transactions != null) {
+        transactions.sort(
+          (a, b) {
+            return DateTime.parse(a.created)
+                .compareTo(DateTime.parse(b.created));
+          },
+        );
+        transactions = transactions.reversed.toList();
+      }
+      setState(() {
+        this.transactions = transactions;
+      });
+    }
+    _refreshController.refreshCompleted();
+    readNFC();
+  }
+
   Future<Map<String, dynamic>?> getUser() async {
     print(username);
     if (username.isEmpty) return null;
-    var uri = Uri.parse(strichliste + "/user/search");
+    var uri = Uri.parse("$strichliste/user/search");
     uri = uri.replace(queryParameters: {"query": username});
     var result = await http.get(uri);
     if (result.statusCode == 200) {
@@ -77,7 +104,7 @@ class _StrichlisteState extends State<Strichliste> {
 
   Future<Article?> getArticle(String barcode) async {
     if (barcode.isEmpty) return null;
-    var uri = Uri.parse(strichliste + "/article/search");
+    var uri = Uri.parse("$strichliste/article/search");
     uri = uri.replace(queryParameters: {"barcode": barcode, "limit": "1"});
     var result = await http.get(uri);
     if (result.statusCode == 200) {
@@ -91,7 +118,7 @@ class _StrichlisteState extends State<Strichliste> {
 
   Future<List<User>?> getUsers() async {
     print("Get user");
-    var uri = Uri.parse(strichliste + "/user");
+    var uri = Uri.parse("$strichliste/user");
     var result = await http.get(uri);
     if (result.statusCode == 200) {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
@@ -107,7 +134,7 @@ class _StrichlisteState extends State<Strichliste> {
   }
 
   Future<List<Transaction>?> getTransactions(int userId) async {
-    var uri = Uri.parse(strichliste + "/user/${userId}/transaction");
+    var uri = Uri.parse("$strichliste/user/${userId}/transaction");
     var result = await http.get(uri);
     if (result.statusCode == 200) {
       var body = jsonDecode(result.body) as Map<String, dynamic>;
@@ -131,10 +158,25 @@ class _StrichlisteState extends State<Strichliste> {
     }
   }
 
+  Future<void> addMoney(int amount, int userId) async {
+    var uri = Uri.parse("$strichliste/user/${userId}/transaction");
+    var body = {"amount": amount};
+    var result = await http.post(uri,
+        headers: {"Content-Type": "application/json"}, body: jsonEncode(body));
+    if (result.statusCode == 200) {
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.body),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
   Future<void> addTransaction(Article? article, int userId) async {
     if (article == null || userId == -1) return;
     print("Addding transaction!!");
-    var uri = Uri.parse(strichliste + "/user/${userId}/transaction");
+    var uri = Uri.parse("$strichliste/user/${userId}/transaction");
     var result = await http.post(uri,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
@@ -168,7 +210,7 @@ class _StrichlisteState extends State<Strichliste> {
 
   Future<void> undoTransaction(int transactionId, int userId) async {
     var result = await http.delete(
-      Uri.parse(strichliste + "/user/${userId}/transaction/${transactionId}"),
+      Uri.parse("$strichliste/user/${userId}/transaction/${transactionId}"),
       headers: {"Content-Type": "application/json"},
     );
     if (result.statusCode >= 400) {
@@ -201,7 +243,7 @@ class _StrichlisteState extends State<Strichliste> {
     List<NDEFRecord> result = await FlutterNfcKit.readNDEFRecords();
     if (result.length > 0) {
       String payload = String.fromCharCodes(result.first.payload ?? []);
-      print("NFC payload: " + payload);
+      print("NFC payload: $payload");
       RegExp validMessage = RegExp(r'(\w+)\:(\d+)');
       Match? match = validMessage.firstMatch(payload);
       if (match != null && match!.group(1) == "enStl") {
@@ -225,6 +267,45 @@ class _StrichlisteState extends State<Strichliste> {
             backgroundColor: Colors.red,
           ));
         }
+      }
+      if (match != null && match!.group(1) == "enSpende") {
+        String? cent = match!.group(2);
+        if (cent == null) return;
+        print(cent);
+        Map<String, dynamic>? user = await getUser();
+        if (user != null) {
+          int userId = user!["id"];
+          print(userId);
+          if (userId == -1) return;
+          await showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text(
+                    "Hast du gerade ${(int.parse(cent) / 100).toString()}€ eingezahlt?"),
+                actions: [
+                  TextButton(
+                      child: Text("Ja"),
+                      onPressed: () async {
+                        addMoney(int.parse(cent), userId);
+                      }),
+                  TextButton(
+                      child: Text("Nein"),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      })
+                ],
+              );
+            },
+          );
+          update();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+            backgroundColor: Colors.red,
+          ));
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text("Kein Strichlisten-NFC Tag"),
@@ -239,29 +320,11 @@ class _StrichlisteState extends State<Strichliste> {
   void initValues() async {
     String u = await storage.read(key: "nickname") ?? "";
 
-    print("username: " + u);
+    print("username: $u");
     setState(() {
       this.username = u;
     });
     await update();
-  }
-
-  Future<void> update() async {
-    print("updating");
-
-    Map<String, dynamic>? user = await getUser();
-    print(user);
-    setState(() {
-      this.user = user;
-    });
-    if (user != null) {
-      List<Transaction>? transactions = await getTransactions(user!["id"]);
-      setState(() {
-        this.transactions = transactions;
-      });
-    }
-    _refreshController.refreshCompleted();
-    readNFC();
   }
 
   @override
@@ -277,6 +340,11 @@ class _StrichlisteState extends State<Strichliste> {
   @override
   Widget build(BuildContext context) {
     List<Widget> transactionsView = [];
+
+    if (user == null)
+      return Center(
+          child: Text(
+              "Bitte konfiguriere erst deinen Benutzer in den Einstellungen"));
     if (transactions == null || transactions!.isEmpty) {
       transactionsView.add(Center(
         child: Text("Keine Transaktionen vorhanden"),
@@ -298,13 +366,21 @@ class _StrichlisteState extends State<Strichliste> {
       }
     }
     return Stack(children: [
-      SmartRefresher(
-        enablePullDown: true,
-        controller: _refreshController,
-        onRefresh: update,
-        child: ListView(children: [
-          if (nfcAvailable)
-            Card(
+      Padding(
+        padding: const EdgeInsets.fromLTRB(0, 90, 0, 0),
+        child: SmartRefresher(
+          enablePullDown: true,
+          controller: _refreshController,
+          onRefresh: update,
+          child: ListView(children: transactionsView),
+        ),
+      ),
+      if (nfcAvailable)
+        Positioned(
+            top: 2,
+            right: 2,
+            left: 2,
+            child: Card(
                 child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -320,23 +396,40 @@ class _StrichlisteState extends State<Strichliste> {
                   size: 20,
                 )
               ],
-            )),
-          for (Widget trans in transactionsView) trans
-        ]),
-      ),
+            ))),
       Positioned(
-        bottom: 20,
+          bottom: 0,
+          right: 2,
+          left: 2,
+          child: Card(
+              child: Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Row(children: [
+                    Text("Kontostand: ",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text("${(user!["balance"] / 100).toString()}€",
+                        style: TextStyle(
+                            color: user!["balance"] >= 0
+                                ? Colors.green
+                                : Colors.red,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold))
+                  ])))),
+      Positioned(
+        bottom: 160,
         right: 20,
         child: FloatingActionButton(
-          heroTag: "add",
-          child: Icon(Icons.add),
+          heroTag: "send",
+          child: Icon(Icons.send),
           onPressed: () async {
             List<User>? users = await getUsers();
-            print(users);
             if (user != null) {
               await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) =>
-                    StrichlisteAdd(userId: user!["id"], users: users),
+                builder: (context) => StrichlisteAdd(
+                    userId: user!["id"],
+                    users: users,
+                    type: StrichlisteAddType.Send),
               ));
               _refreshController.requestRefresh();
             } else {
@@ -352,6 +445,58 @@ class _StrichlisteState extends State<Strichliste> {
       Positioned(
         bottom: 90,
         right: 20,
+        child: FloatingActionButton(
+          heroTag: "topUp",
+          child: Icon(Icons.wallet),
+          onPressed: () async {
+            List<User>? users = await getUsers();
+            if (user != null) {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => StrichlisteAdd(
+                    userId: user!["id"],
+                    users: users,
+                    type: StrichlisteAddType.Topup),
+              ));
+              _refreshController.requestRefresh();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+                backgroundColor: Colors.red,
+              ));
+            }
+          },
+        ),
+      ),
+      Positioned(
+        bottom: 20,
+        right: 20,
+        child: FloatingActionButton(
+          heroTag: "buy",
+          child: Icon(Icons.euro),
+          onPressed: () async {
+            List<User>? users = await getUsers();
+            if (user != null) {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => StrichlisteAdd(
+                    userId: user!["id"],
+                    users: users,
+                    type: StrichlisteAddType.Buy),
+              ));
+              _refreshController.requestRefresh();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
+                backgroundColor: Colors.red,
+              ));
+            }
+          },
+        ),
+      ),
+      Positioned(
+        bottom: 20,
+        right: 90,
         child: FloatingActionButton(
           heroTag: "barcodeScan",
           child: Icon(Icons.barcode_reader),
