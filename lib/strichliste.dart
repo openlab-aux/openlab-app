@@ -201,7 +201,7 @@ class _StrichlisteState extends State<Strichliste> {
       ));
     } else {
       print(result.body);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text("Konnte Artikel nicht hinzufügen"),
         backgroundColor: Colors.red,
       ));
@@ -215,7 +215,7 @@ class _StrichlisteState extends State<Strichliste> {
     );
     if (result.statusCode >= 400) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Undo successfull!")));
+          .showSnackBar(const SnackBar(content: Text("Undo successfull!")));
     }
   }
 
@@ -236,7 +236,7 @@ class _StrichlisteState extends State<Strichliste> {
       });
     }
     var tag = await FlutterNfcKit.poll(
-        timeout: Duration(days: 9),
+        timeout: const Duration(days: 9),
         iosMultipleTagMessage: "Multiple tags found!",
         iosAlertMessage: "Scan your tag");
     print(jsonEncode(tag));
@@ -261,7 +261,7 @@ class _StrichlisteState extends State<Strichliste> {
           await addTransaction(article, userId);
           update();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text(
                 "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
             backgroundColor: Colors.red,
@@ -285,12 +285,12 @@ class _StrichlisteState extends State<Strichliste> {
                     "Hast du gerade ${(int.parse(cent) / 100).toString()}€ eingezahlt?"),
                 actions: [
                   TextButton(
-                      child: Text("Ja"),
+                      child: const Text("Ja"),
                       onPressed: () async {
                         addMoney(int.parse(cent), userId);
                       }),
                   TextButton(
-                      child: Text("Nein"),
+                      child: const Text("Nein"),
                       onPressed: () {
                         Navigator.of(context).pop();
                       })
@@ -300,14 +300,14 @@ class _StrichlisteState extends State<Strichliste> {
           );
           update();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text(
                 "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
             backgroundColor: Colors.red,
           ));
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("Kein Strichlisten-NFC Tag"),
           backgroundColor: Colors.red,
         ));
@@ -342,11 +342,11 @@ class _StrichlisteState extends State<Strichliste> {
     List<Widget> transactionsView = [];
 
     if (user == null)
-      return Center(
+      return const Center(
           child: Text(
               "Bitte konfiguriere erst deinen Benutzer in den Einstellungen"));
     if (transactions == null || transactions!.isEmpty) {
-      transactionsView.add(Center(
+      transactionsView.add(const Center(
         child: Text("Keine Transaktionen vorhanden"),
       ));
     } else {
@@ -376,7 +376,7 @@ class _StrichlisteState extends State<Strichliste> {
         ),
       ),
       if (nfcAvailable)
-        Positioned(
+        const Positioned(
             top: 2,
             right: 2,
             left: 2,
@@ -386,7 +386,7 @@ class _StrichlisteState extends State<Strichliste> {
               children: [
                 Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: Text(
+                  child: const Text(
                     "Halte dein Smartphone an den passenden\nNFC Tag um ein Buchung durchzuführen",
                     textAlign: TextAlign.center,
                   ),
@@ -403,9 +403,9 @@ class _StrichlisteState extends State<Strichliste> {
           left: 2,
           child: Card(
               child: Padding(
-                  padding: EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(8.0),
                   child: Row(children: [
-                    Text("Kontostand: ",
+                    const Text("Kontostand: ",
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.bold)),
                     Text("${(user!["balance"] / 100).toString()}€",
@@ -421,7 +421,7 @@ class _StrichlisteState extends State<Strichliste> {
         right: 20,
         child: FloatingActionButton(
           heroTag: "send",
-          child: Icon(Icons.send),
+          child: const Icon(Icons.send),
           onPressed: () async {
             List<User>? users = await getUsers();
             if (user != null) {
@@ -433,7 +433,7 @@ class _StrichlisteState extends State<Strichliste> {
               ));
               _refreshController.requestRefresh();
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text(
                     "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
                 backgroundColor: Colors.red,
@@ -447,7 +447,7 @@ class _StrichlisteState extends State<Strichliste> {
         right: 20,
         child: FloatingActionButton(
           heroTag: "topUp",
-          child: Icon(Icons.wallet),
+          child: const Icon(Icons.wallet),
           onPressed: () async {
             List<User>? users = await getUsers();
             if (user != null) {
@@ -459,7 +459,7 @@ class _StrichlisteState extends State<Strichliste> {
               ));
               _refreshController.requestRefresh();
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text(
                     "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
                 backgroundColor: Colors.red,
@@ -473,7 +473,7 @@ class _StrichlisteState extends State<Strichliste> {
         right: 20,
         child: FloatingActionButton(
           heroTag: "buy",
-          child: Icon(Icons.euro),
+          child: const Icon(Icons.euro),
           onPressed: () async {
             List<User>? users = await getUsers();
             if (user != null) {
@@ -485,7 +485,7 @@ class _StrichlisteState extends State<Strichliste> {
               ));
               _refreshController.requestRefresh();
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text(
                     "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
                 backgroundColor: Colors.red,
@@ -499,7 +499,7 @@ class _StrichlisteState extends State<Strichliste> {
         right: 90,
         child: FloatingActionButton(
           heroTag: "barcodeScan",
-          child: Icon(Icons.barcode_reader),
+          child: const Icon(Icons.barcode_reader),
           onPressed: () async {
             List<User>? users = await getUsers();
             print(users);
@@ -519,19 +519,19 @@ class _StrichlisteState extends State<Strichliste> {
                   print("After add transaction");
                   _refreshController.requestRefresh();
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                     content: Text("Konnte Artikel nicht finden"),
                     backgroundColor: Colors.red,
                   ));
                 }
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                   content: Text("Etwas ist leider schief gelaufen"),
                   backgroundColor: Colors.red,
                 ));
               }
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text(
                     "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
                 backgroundColor: Colors.red,

@@ -202,25 +202,15 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   void outerDoor() async {
-    checkCreds();
-    String basicAuth =
-        'Basic ' + base64Encode(utf8.encode('$username:$password'));
-    await http.post(Uri.parse("http://airlock.lab:3000/open/outerdoor"),
-        headers: {
-          'authorization': basicAuth,
-          'Access-Control-Allow-Origin': '*'
-        });
+    http.post(Uri.parse("http://door-api:3000/api/buzzer"),
+        headers: {"Authentication": "Bearer $refreshToken"},
+        body: {"buzzer": "OUTER", "milliseconds": 100});
   }
 
   void innerDoor() async {
-    checkCreds();
-    String basicAuth =
-        'Basic ' + base64Encode(utf8.encode('$username:$password'));
-    await http.post(Uri.parse("http://airlock.lab:3000/open/innerdoor"),
-        headers: {
-          'authorization': basicAuth,
-          'Access-Control-Allow-Origin': '*'
-        });
+    http.post(Uri.parse("http://door-api:3000/api/buzzer"),
+        headers: {"Authentication": "Bearer $refreshToken"},
+        body: {"buzzer": "INNER", "milliseconds": 100});
   }
 
   @override
