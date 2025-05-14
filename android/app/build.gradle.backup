@@ -59,9 +59,6 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
-        manifestPlaceholders += [
-                'appAuthRedirectScheme': 'de.openlab.openlabflutter'
-        ]
     }
 
     buildTypes {

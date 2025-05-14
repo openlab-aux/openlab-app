@@ -12,13 +12,17 @@ import 'package:wifi_iot/wifi_iot.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:oidc/oidc.dart';
+import 'package:oidc_core/oidc_core.dart';
 
 const hce = MethodChannel("hce");
 const clientId = 'openlab-app';
 const issuer = 'https://keycloak.lab.weltraumpflege.org/realms/OpenLab';
 const redirect = 'de.openlab.openlabflutter:/oauthredirect';
 const scopes = ['openid'];
+const wellKnownUrl =
+    "https://auth.openlab-augsburg.de/application/o/airlock/.well-known/openid-configuration";
+final store = OidcMemoryStore();
 
 class OpenDoor extends StatefulWidget {
   @override
@@ -32,8 +36,18 @@ class _OpenDoorState extends State<OpenDoor> {
   String refreshToken = "";
   String accessToken = "";
   // this will be changed in the NfcHce.stream listen callback
-
-  final FlutterAppAuth _appAuth = const FlutterAppAuth();
+  final manager = OidcUserManager.lazy(
+    discoveryDocumentUri: OidcUtils.getOpenIdConfigWellKnownUri(
+      Uri.parse(wellKnownUrl),
+    ),
+    clientCredentials: const OidcClientAuthentication.none(clientId: clientId),
+    store: store,
+    settings: OidcUserManagerSettings(
+      //get any available port
+      redirectUri: Uri.parse('http://127.0.0.1:0'),
+      postLogoutRedirectUri: Uri.parse('http://127.0.0.1:0'),
+    ),
+  );
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -51,13 +65,13 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<void> getAccessToken() async {
-    String? accessToken = await loginKeykloak();
+    String? accessToken = await loginOIDC();
     if (accessToken != null || accessToken!.isNotEmpty) {
       print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
       DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
       var result = await hce.invokeMethod<bool>("accessToken", {
         "accessToken": accessToken,
-        "expirationDate": expirationDate.toIso8601String()
+        "expirationDate": expirationDate.toIso8601String(),
       });
       print("after aaaaaaaaa");
     } else {
@@ -83,35 +97,24 @@ class _OpenDoorState extends State<OpenDoor> {
     // }
   }
 
-  Future<String?> loginKeykloak() async {
+  Future<String?> loginOIDC() async {
     print("trying keykloak login");
-    final AuthorizationTokenResponse? result =
-        await _appAuth.authorizeAndExchangeCode(
-      AuthorizationTokenRequest(
-        'openlab-app',
-        'de.openlab.openlabflutter:/oauthredirect',
-        serviceConfiguration: AuthorizationServiceConfiguration(
-            authorizationEndpoint:
-                "https://keycloak.lab.weltraumpflege.org/realms/OpenLabTest/protocol/openid-connect/auth",
-            tokenEndpoint:
-                "https://keycloak.lab.weltraumpflege.org/realms/OpenLabTest/protocol/openid-connect/token",
-            endSessionEndpoint:
-                "https://keycloak.lab.weltraumpflege.org/realms/OpenLabTest/protocol/openid-connect/logout"),
-        clientSecret: 'VcJGq5LUZBg37nrbSEnwWOSRMKJtrlOe',
-        issuer: issuer,
-        scopes: scopes,
-      ),
-    );
-    if (result != null) {
+    final OidcUser? user =
+        manager.currentUser ?? await manager.loginAuthorizationCodeFlow();
+    if (user != null) {
       await setRefreshTokenAndAccessToken(
-          result!.refreshToken, result!.accessToken);
-      return result!.accessToken;
+        user.token.refreshToken,
+        user.token.accessToken,
+      );
+      return user.token.accessToken;
     }
-    print("After keykloadk login ");
+    print("After oidc login ");
   }
 
   Future<void> setRefreshTokenAndAccessToken(
-      String? refreshToken, String? accessToken) async {
+    String? refreshToken,
+    String? accessToken,
+  ) async {
     await storage.write(key: "refreshToken", value: refreshToken);
     setState(() {
       refreshToken = refreshToken ?? "";
@@ -126,9 +129,10 @@ class _OpenDoorState extends State<OpenDoor> {
       print("NFC not available");
     } // timeout only works on Android, while the latter two messages are only for iOS
     var tag = await FlutterNfcKit.poll(
-        timeout: Duration(seconds: 10),
-        iosMultipleTagMessage: "Multiple tags found!",
-        iosAlertMessage: "Scan your tag");
+      timeout: Duration(seconds: 10),
+      iosMultipleTagMessage: "Multiple tags found!",
+      iosAlertMessage: "Scan your tag",
+    );
     print(jsonEncode(tag));
   }
 
@@ -136,8 +140,9 @@ class _OpenDoorState extends State<OpenDoor> {
     var result = await hce.invokeMethod<bool>("startHCE");
     if (result == true) {
       print("Yeah called the method");
-      var result = await hce
-          .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
+      var result = await hce.invokeMethod<bool>("accessToken", {
+        "accessToken": accessToken,
+      });
     } else {
       print("Nonononono");
     }
@@ -195,31 +200,41 @@ class _OpenDoorState extends State<OpenDoor> {
 
   void checkCreds() {
     if (username.isEmpty && password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
           content: Text(
-              "Bitte gib erst in den Einstellungen deinen Username und dein Passwort ein!")));
+            "Bitte gib erst in den Einstellungen deinen Username und dein Passwort ein!",
+          ),
+        ),
+      );
     }
   }
 
   void outerDoor() async {
-    http.post(Uri.parse("http://door-api:3000/api/buzzer"),
-        headers: {"Authentication": "Bearer $refreshToken"},
-        body: {"buzzer": "OUTER", "milliseconds": 100});
+    http.post(
+      Uri.parse("http://door-api:3000/api/buzzer"),
+      headers: {"Authentication": "Bearer $refreshToken"},
+      body: {"buzzer": "OUTER", "milliseconds": 100},
+    );
   }
 
   void innerDoor() async {
-    http.post(Uri.parse("http://door-api:3000/api/buzzer"),
-        headers: {"Authentication": "Bearer $refreshToken"},
-        body: {"buzzer": "INNER", "milliseconds": 100});
+    http.post(
+      Uri.parse("http://door-api:3000/api/buzzer"),
+      headers: {"Authentication": "Bearer $refreshToken"},
+      body: {"buzzer": "INNER", "milliseconds": 100},
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     ButtonStyle borderStyle = ElevatedButton.styleFrom(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        foregroundColor: Theme.of(context).primaryColor,
-        textStyle: TextStyle(
-            fontSize: Theme.of(context).textTheme.headlineMedium!.fontSize));
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      foregroundColor: Theme.of(context).primaryColor,
+      textStyle: TextStyle(
+        fontSize: Theme.of(context).textTheme.headlineMedium!.fontSize,
+      ),
+    );
 
     return Column(
       children: [
@@ -231,19 +246,18 @@ class _OpenDoorState extends State<OpenDoor> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                      style: borderStyle,
-                      onPressed: outerDoor,
-                      child: Text(
-                        "Außentüre",
-                      )),
+                    style: borderStyle,
+                    onPressed: outerDoor,
+                    child: Text("Außentüre"),
+                  ),
                 ),
                 Expanded(
-                    child: ElevatedButton(
-                        style: borderStyle,
-                        onPressed: innerDoor,
-                        child: Text(
-                          "Innentüre",
-                        )))
+                  child: ElevatedButton(
+                    style: borderStyle,
+                    onPressed: innerDoor,
+                    child: Text("Innentüre"),
+                  ),
+                ),
               ],
             ),
           ),
@@ -251,12 +265,16 @@ class _OpenDoorState extends State<OpenDoor> {
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: ElevatedButton(
-              onPressed: connectWifi, child: const Text("Mit Wifi verbinden")),
+            onPressed: connectWifi,
+            child: const Text("Mit Wifi verbinden"),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: ElevatedButton(
-              onPressed: getAccessToken, child: const Text("Keykloak login")),
+            onPressed: getAccessToken,
+            child: const Text("Keykloak login"),
+          ),
         ),
       ],
     );
