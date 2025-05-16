@@ -1,5 +1,4 @@
-fastlane documentation
-----
+## fastlane documentation
 
 # Installation
 
@@ -29,15 +28,11 @@ Runs all the tests
 [bundle exec] fastlane android bump_major
 ```
 
-
-
 ### android bump_minor
 
 ```sh
 [bundle exec] fastlane android bump_minor
 ```
-
-
 
 ### android bump_patch
 
@@ -45,15 +40,11 @@ Runs all the tests
 [bundle exec] fastlane android bump_patch
 ```
 
-
-
 ### android read_version
 
 ```sh
 [bundle exec] fastlane android read_version
 ```
-
-
 
 ### android read_code
 
@@ -61,15 +52,11 @@ Runs all the tests
 [bundle exec] fastlane android read_code
 ```
 
-
-
 ### android apply_new_version
 
 ```sh
 [bundle exec] fastlane android apply_new_version
 ```
-
-
 
 ### android beta
 
@@ -93,10 +80,7 @@ Deploy a new version to the Google Play
 [bundle exec] fastlane android tag_commit
 ```
 
-
-
-----
-
+---
 
 ## iOS
 
@@ -106,15 +90,11 @@ Deploy a new version to the Google Play
 [bundle exec] fastlane ios read_version
 ```
 
-
-
 ### ios read_code
 
 ```sh
 [bundle exec] fastlane ios read_code
 ```
-
-
 
 ### ios beta
 
@@ -132,7 +112,7 @@ Submit a new Beta Build to Beta
 
 Upload to BrowserStack Applive
 
-----
+---
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
 

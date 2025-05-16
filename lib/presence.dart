@@ -11,14 +11,13 @@ import 'package:direct_select/direct_select.dart';
 class PresenceResponse {
   final Map<String, DateTime> users;
 
-  const PresenceResponse({
-    required this.users,
-  });
+  const PresenceResponse({required this.users});
 
   factory PresenceResponse.fromJson(Map<String, dynamic> json) {
     Map<String, String> users = Map.from(json['users']);
     return PresenceResponse(
-        users: users.map((key, value) => MapEntry(key, DateTime.parse(value))));
+      users: users.map((key, value) => MapEntry(key, DateTime.parse(value))),
+    );
   }
 }
 
@@ -35,19 +34,22 @@ class Coming {
 class ComingResponse {
   final Map<String, Coming> users;
 
-  const ComingResponse({
-    required this.users,
-  });
+  const ComingResponse({required this.users});
 
   factory ComingResponse.fromJson(Map<String, dynamic> json) {
     Map<String, dynamic> users = Map.from(json['users']);
     return ComingResponse(
-        users: users.map((key, value) => MapEntry(
-            key,
-            Coming(
-                type: ComingType.values.byName(value['coming_type']),
-                when: DateTime.parse(value['when']),
-                edited: DateTime.parse(value['edited'])))));
+      users: users.map(
+        (key, value) => MapEntry(
+          key,
+          Coming(
+            type: ComingType.values.byName(value['coming_type']),
+            when: DateTime.parse(value['when']),
+            edited: DateTime.parse(value['edited']),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -67,9 +69,10 @@ class _PresenceState extends State<Presence> {
   ComingType comingType = ComingType.Gammeln;
 
   final storage = new FlutterSecureStorage();
-  RefreshController _refreshController =
-      RefreshController(initialRefresh: true);
-
+  RefreshController _refreshController = RefreshController(
+    initialRefresh: true,
+  );
+  final GlobalKey bottomSheetGlobalKey = GlobalKey();
   @override
   void initState() {
     super.initState();
@@ -133,12 +136,13 @@ class _PresenceState extends State<Presence> {
   void logout() async {
     try {
       http.Response response = await http.delete(
-          Uri.parse(apiUrl + "/presence"),
-          body: jsonEncode({"nickname": nickname}),
-          headers: {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*'
-          });
+        Uri.parse(apiUrl + "/presence"),
+        body: jsonEncode({"nickname": nickname}),
+        headers: {
+          "Content-Type": "application/json",
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
       if (response.statusCode == 200) {
         loadPresence();
       } else {
@@ -151,12 +155,14 @@ class _PresenceState extends State<Presence> {
 
   void login() async {
     try {
-      http.Response response = await http.put(Uri.parse(apiUrl + "/presence"),
-          body: jsonEncode({"nickname": nickname}),
-          headers: {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*'
-          });
+      http.Response response = await http.put(
+        Uri.parse(apiUrl + "/presence"),
+        body: jsonEncode({"nickname": nickname}),
+        headers: {
+          "Content-Type": "application/json",
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
       if (response.statusCode == 200) {
         loadPresence();
       } else {
@@ -169,48 +175,86 @@ class _PresenceState extends State<Presence> {
 
   Future<void> comingBottomSheet() async {
     await showModalBottomSheet(
-        context: context,
-        builder: (BuildContext context) {
-          return StatefulBuilder(
-            builder: (BuildContext context, StateSetter setStateSetter) {
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                        "Wann kommst du denn?\nDreh öfters um Stunden zu selektieren."),
-                  ),
-                  DurationPicker(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setStateSetter) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        "Wann kommst du denn?\nDreh öfters um Stunden zu selektieren.",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    DurationPicker(
                       duration: whenICome,
                       onChange: (value) {
                         setStateSetter(() {
                           whenICome = value;
                         });
-                      }),
-                  Text("Und was möchtest du tun?"),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: DropdownButton<ComingType>(
-                        value: comingType,
-                        items: ComingType.values
-                            .map((e) => DropdownMenuItem(
-                                  value: e,
-                                  child: Text(e.name),
-                                ))
-                            .toList(),
-                        onChanged: (value) {
-                          setStateSetter(() {
-                            if (value != null) {
-                              comingType = value;
-                            }
-                          });
-                        }),
-                  )
-                ],
-              );
-            },
-          );
-        });
+                      },
+                    ),
+                    Text(
+                      "Und was möchtest du tun?",
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<ComingType>(
+                            value: comingType,
+                            items:
+                                ComingType.values
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text(e.name),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) {
+                              setStateSetter(() {
+                                if (value != null) {
+                                  comingType = value;
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text("Speichern"),
+                      ),
+                    ),
+                    SizedBox(height: 20), // Add bottom padding for safety
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void i_am_coming() async {
@@ -218,17 +262,19 @@ class _PresenceState extends State<Presence> {
 
     try {
       DateTime whenTime = (DateTime.now().add(whenICome)).toUtc();
-      http.Response response = await http.put(Uri.parse(apiUrl + "/coming"),
-          body: jsonEncode({
-            "nickname": nickname,
-            "coming_type": comingType.name,
-            "when":
-                "${whenTime.day.toString().padLeft(2, "0")}.${whenTime.month.toString().padLeft(2, "0")}.${whenTime.year.toString().padLeft(2, "0")} ${whenTime.hour.toString().padLeft(2, "0")}:${whenTime.minute.toString().padLeft(2, "0")}:${whenTime.second.toString().padLeft(2, "0")}"
-          }),
-          headers: {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*'
-          });
+      http.Response response = await http.put(
+        Uri.parse(apiUrl + "/coming"),
+        body: jsonEncode({
+          "nickname": nickname,
+          "coming_type": comingType.name,
+          "when":
+              "${whenTime.day.toString().padLeft(2, "0")}.${whenTime.month.toString().padLeft(2, "0")}.${whenTime.year.toString().padLeft(2, "0")} ${whenTime.hour.toString().padLeft(2, "0")}:${whenTime.minute.toString().padLeft(2, "0")}:${whenTime.second.toString().padLeft(2, "0")}",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
       if (response.statusCode == 200) {
         loadComing();
       } else {
@@ -241,12 +287,14 @@ class _PresenceState extends State<Presence> {
 
   void not_coming() async {
     try {
-      http.Response response = await http.delete(Uri.parse(apiUrl + "/coming"),
-          body: jsonEncode({"nickname": nickname}),
-          headers: {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*'
-          });
+      http.Response response = await http.delete(
+        Uri.parse(apiUrl + "/coming"),
+        body: jsonEncode({"nickname": nickname}),
+        headers: {
+          "Content-Type": "application/json",
+          'Access-Control-Allow-Origin': '*',
+        },
+      );
       if (response.statusCode == 200) {
         loadComing();
       } else {
@@ -260,7 +308,9 @@ class _PresenceState extends State<Presence> {
   @override
   Widget build(BuildContext context) {
     Widget loginButton = Expanded(
-      child: ElevatedButton(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
+        child: ElevatedButton(
           onPressed: () {
             if (loggedIn) {
               logout();
@@ -268,10 +318,14 @@ class _PresenceState extends State<Presence> {
               login();
             }
           },
-          child: Text(loggedIn ? "Ausloggen" : "Einloggen")),
+          child: Text(loggedIn ? "Ausloggen" : "Einloggen"),
+        ),
+      ),
     );
     Widget comingButton = Expanded(
-      child: ElevatedButton(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
+        child: ElevatedButton(
           onPressed: () {
             if (planingToCome) {
               not_coming();
@@ -279,20 +333,24 @@ class _PresenceState extends State<Presence> {
               i_am_coming();
             }
           },
-          child: Text(planingToCome ? "Doch nicht ..." : "Ich komme!")),
+          child: Text(planingToCome ? "Doch nicht ..." : "Ich komme!"),
+        ),
+      ),
     );
     if ((presence == null || coming == null) ||
         (presence!.users.isEmpty && coming!.users.isEmpty)) {
-      return Stack(children: [
-        SmartRefresher(
+      return Stack(
+        children: [
+          SmartRefresher(
             controller: _refreshController,
             onRefresh: () => refresh(),
             onLoading: () => refresh(),
             enablePullDown: true,
             enablePullUp: true,
             header: WaterDropHeader(),
-            child: Center(child: Text("Leider niemand da :("))),
-        Positioned(
+            child: Center(child: Text("Leider niemand da :(")),
+          ),
+          Positioned(
             bottom: 10,
             left: 0,
             right: 0,
@@ -300,63 +358,83 @@ class _PresenceState extends State<Presence> {
               height: 50,
               width: double.infinity,
               child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [loginButton, comingButton]),
-            )),
-      ]);
-    }
-    return Stack(children: [
-      SmartRefresher(
-        controller: _refreshController,
-        onRefresh: () => refresh(),
-        onLoading: () => refresh(),
-        enablePullDown: true,
-        enablePullUp: true,
-        header: WaterDropHeader(),
-        child: Column(
-          children: [
-            Text("Aktuell im Lab",
-                style: Theme.of(context).textTheme.headlineMedium),
-            Expanded(
-              flex: 1,
-              child: Scrollbar(
-                child: ListView(
-                  children: [
-                    for (MapEntry<String, DateTime> entry
-                        in presence!.users.entries)
-                      ListTile(
-                        title: Text(entry.key),
-                        trailing: Text(
-                            "${entry.value.toLocal().hour.toString().padLeft(2, "0")}:${entry.value.toLocal().minute.toString().padLeft(2, "0")}"),
-                      )
-                  ],
-                ),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [loginButton, comingButton],
               ),
             ),
-            Divider(),
-            Text("Hat vor zu kommen",
-                style: Theme.of(context).textTheme.headlineMedium),
-            Expanded(
-              flex: 1,
-              child: Scrollbar(
-                child: ListView(
-                  children: [
-                    for (MapEntry<String, Coming> entry
-                        in coming!.users.entries)
-                      ListTile(
-                        title: Text(entry.key),
-                        leading: Text(entry.value.type.name),
-                        trailing: Text(
-                            "${entry.value.when.toLocal().hour.toString().padLeft(2, "0")}:${entry.value.when.toLocal().minute.toString().padLeft(2, "0")}"),
-                      )
-                  ],
+          ),
+        ],
+      );
+    }
+
+    // Main view with lists of people
+    return Stack(
+      children: [
+        SmartRefresher(
+          controller: _refreshController,
+          onRefresh: () => refresh(),
+          onLoading: () => refresh(),
+          enablePullDown: true,
+          enablePullUp: true,
+          header: WaterDropHeader(),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  "Aktuell im Lab",
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
               ),
-            )
-          ],
+              // Use Flexible instead of Expanded for the lists to allow them to shrink if needed
+              Flexible(
+                flex: 1,
+                child: Scrollbar(
+                  child: ListView(
+                    shrinkWrap: true, // Make ListView take only needed space
+                    children: [
+                      for (MapEntry<String, DateTime> entry
+                          in presence!.users.entries)
+                        ListTile(
+                          title: Text(entry.key),
+                          trailing: Text(
+                            "${entry.value.toLocal().hour.toString().padLeft(2, "0")}:${entry.value.toLocal().minute.toString().padLeft(2, "0")}",
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Divider(),
+              Text(
+                "Hat vor zu kommen",
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              Flexible(
+                flex: 1,
+                child: Scrollbar(
+                  child: ListView(
+                    shrinkWrap: true, // Make ListView take only needed space
+                    children: [
+                      for (MapEntry<String, Coming> entry
+                          in coming!.users.entries)
+                        ListTile(
+                          title: Text(entry.key),
+                          leading: Text(entry.value.type.name),
+                          trailing: Text(
+                            "${entry.value.when.toLocal().hour.toString().padLeft(2, "0")}:${entry.value.when.toLocal().minute.toString().padLeft(2, "0")}",
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // Add spacing for the buttons at the bottom
+              SizedBox(height: 60),
+            ],
+          ),
         ),
-      ),
-      Positioned(
+        Positioned(
           bottom: 10,
           left: 0,
           right: 0,
@@ -367,7 +445,9 @@ class _PresenceState extends State<Presence> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [loginButton, comingButton],
             ),
-          )),
-    ]);
+          ),
+        ),
+      ],
+    );
   }
 }

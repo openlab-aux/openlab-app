@@ -16,7 +16,9 @@ import 'package:oidc/oidc.dart';
 import 'package:oidc_core/oidc_core.dart';
 
 const hce = MethodChannel("hce");
-const clientId = 'openlab-app';
+const clientId = 'RX1Tts6xiTxS0jMcYvTTBTKejHQpCKwWyoQwF8JC';
+const clientSecret =
+    '7buahQTaCr1cPMMgnMylkdcXlycfJXbmCnodLYQKN5M9N05t5MGhFXgR4Gygcxw5p1bUVna08OeMoSAD747fMDsH2KocIHWGQxl7nF9VnUOa952hUyqzqjnvbfXQlUIr';
 const issuer = 'https://keycloak.lab.weltraumpflege.org/realms/OpenLab';
 const redirect = 'de.openlab.openlabflutter:/oauthredirect';
 const scopes = ['openid'];
@@ -37,21 +39,23 @@ class _OpenDoorState extends State<OpenDoor> {
   String accessToken = "";
   // this will be changed in the NfcHce.stream listen callback
   final manager = OidcUserManager.lazy(
-    discoveryDocumentUri: OidcUtils.getOpenIdConfigWellKnownUri(
-      Uri.parse(wellKnownUrl),
+    discoveryDocumentUri: Uri.parse(wellKnownUrl),
+    clientCredentials: const OidcClientAuthentication.clientSecretBasic(
+      clientId: clientId,
+      clientSecret: clientSecret,
     ),
-    clientCredentials: const OidcClientAuthentication.none(clientId: clientId),
     store: store,
     settings: OidcUserManagerSettings(
       //get any available port
-      redirectUri: Uri.parse('http://127.0.0.1:0'),
-      postLogoutRedirectUri: Uri.parse('http://127.0.0.1:0'),
+      redirectUri: Uri.parse('de.openlab.openlabflutter:/oauth2redirect'),
+      postLogoutRedirectUri: Uri.parse('de.openlab.openlabflutter:/logout'),
     ),
   );
   @override
   void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       initValues();
+      await manager.init();
     });
 
     hce.setMethodCallHandler((MethodCall call) async {
@@ -98,17 +102,57 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<String?> loginOIDC() async {
-    print("trying keykloak login");
-    final OidcUser? user =
-        manager.currentUser ?? await manager.loginAuthorizationCodeFlow();
-    if (user != null) {
-      await setRefreshTokenAndAccessToken(
-        user.token.refreshToken,
-        user.token.accessToken,
-      );
-      return user.token.accessToken;
+    print("Trying keycloak login on Android");
+
+    try {
+      // Check if user is already logged in
+      if (manager.currentUser != null) {
+        // Check if token is expired based on expiration time
+        final Duration? expiresIn = manager.currentUser?.token.expiresIn;
+
+        if (expiresIn != null && expiresIn.isNegative) {
+          print("User already logged in with valid token");
+          return manager.currentUser!.token.accessToken;
+        }
+
+        // Token is expired, try refreshing
+        print("Token expired, attempting refresh");
+        try {
+          final refreshedUser = await manager.refreshToken();
+          if (refreshedUser != null) {
+            print("Token refreshed successfully");
+            await setRefreshTokenAndAccessToken(
+              refreshedUser.token.refreshToken,
+              refreshedUser.token.accessToken,
+            );
+            return refreshedUser.token.accessToken;
+          }
+        } catch (e) {
+          print("Token refresh failed: $e");
+          // Continue to new login flow
+        }
+      }
+
+      // Initiate login process
+      print("Initiating new login flow");
+      final OidcUser? user = await manager.loginAuthorizationCodeFlow();
+
+      if (user != null) {
+        print("Login successful");
+        await setRefreshTokenAndAccessToken(
+          user.token.refreshToken,
+          user.token.accessToken,
+        );
+        return user.token.accessToken;
+      } else {
+        print("Login failed - user is null");
+        return null;
+      }
+    } catch (e, stackTrace) {
+      print("OIDC login error: $e");
+      print("Stack trace: $stackTrace");
+      return null;
     }
-    print("After oidc login ");
   }
 
   Future<void> setRefreshTokenAndAccessToken(
@@ -228,9 +272,7 @@ class _OpenDoorState extends State<OpenDoor> {
 
   @override
   Widget build(BuildContext context) {
-    ButtonStyle borderStyle = ElevatedButton.styleFrom(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      foregroundColor: Theme.of(context).primaryColor,
+    final ButtonStyle borderStyle = ElevatedButton.styleFrom(
       textStyle: TextStyle(
         fontSize: Theme.of(context).textTheme.headlineMedium!.fontSize,
       ),
@@ -245,36 +287,56 @@ class _OpenDoorState extends State<OpenDoor> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: ElevatedButton(
-                    style: borderStyle,
-                    onPressed: outerDoor,
-                    child: Text("Außentüre"),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 2, 0),
+                    child: ElevatedButton(
+                      style: borderStyle,
+                      onPressed: outerDoor,
+                      child: Text(
+                        "Außentüre öffnen",
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: ElevatedButton(
-                    style: borderStyle,
-                    onPressed: innerDoor,
-                    child: Text("Innentüre"),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 0, 0, 0),
+                    child: ElevatedButton(
+                      style: borderStyle,
+                      onPressed: innerDoor,
+                      child: Text(
+                        "Innentüre öffnen",
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ElevatedButton(
-            onPressed: connectWifi,
-            child: const Text("Mit Wifi verbinden"),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ElevatedButton(
-            onPressed: getAccessToken,
-            child: const Text("Keykloak login"),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 0, 4.0, 16),
+                child: ElevatedButton(
+                  onPressed: connectWifi,
+                  child: const Text("Mit Wifi verbinden"),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4.0, 0, 16.0, 16),
+                child: ElevatedButton(
+                  onPressed: getAccessToken,
+                  child: const Text("Authentik login"),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

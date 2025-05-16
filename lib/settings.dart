@@ -43,19 +43,25 @@ class _SettingsState extends State<Settings> {
     return Form(
       child: Column(
         children: [
-          Text("Settings", style: Theme.of(context).textTheme.headlineMedium),
+          Text(
+            "Einstellungen",
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
             child: TextFormField(
               controller: usernameController,
               decoration: InputDecoration(
-                  border: OutlineInputBorder(), label: Text("Username")),
-              onChanged: (value) async => {
-                setState(() {
-                  username = value;
-                }),
-                await storage.write(key: "username", value: value)
-              },
+                border: OutlineInputBorder(),
+                label: Text("Authentik Username"),
+              ),
+              onChanged:
+                  (value) async => {
+                    setState(() {
+                      username = value;
+                    }),
+                    await storage.write(key: "username", value: value),
+                  },
             ),
           ),
           Padding(
@@ -64,13 +70,16 @@ class _SettingsState extends State<Settings> {
               controller: passwordController,
               obscureText: true,
               decoration: InputDecoration(
-                  border: OutlineInputBorder(), label: Text("Password")),
-              onChanged: (value) async => {
-                setState(() {
-                  password = password;
-                }),
-                await storage.write(key: "password", value: value)
-              },
+                border: OutlineInputBorder(),
+                label: Text("Authentik Password"),
+              ),
+              onChanged:
+                  (value) async => {
+                    setState(() {
+                      password = password;
+                    }),
+                    await storage.write(key: "password", value: value),
+                  },
             ),
           ),
           Padding(
@@ -78,15 +87,18 @@ class _SettingsState extends State<Settings> {
             child: TextFormField(
               controller: nicknameController,
               decoration: InputDecoration(
-                  border: OutlineInputBorder(), label: Text("Nickname")),
-              onChanged: (value) async => {
-                setState(() {
-                  nickname = nickname;
-                }),
-                await storage.write(key: "nickname", value: value)
-              },
+                border: OutlineInputBorder(),
+                label: Text("Nickname auf der Strichliste"),
+              ),
+              onChanged:
+                  (value) async => {
+                    setState(() {
+                      nickname = nickname;
+                    }),
+                    await storage.write(key: "nickname", value: value),
+                  },
             ),
-          )
+          ),
         ],
       ),
     );
