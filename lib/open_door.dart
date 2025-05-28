@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:ffi';
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -14,17 +14,19 @@ import 'package:ndef/ndef.dart' as ndef;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:oidc/oidc.dart';
 import 'package:oidc_core/oidc_core.dart';
+import 'package:http/io_client.dart';
 
 const hce = MethodChannel("hce");
 const clientId = 'RX1Tts6xiTxS0jMcYvTTBTKejHQpCKwWyoQwF8JC';
 const clientSecret =
     '7buahQTaCr1cPMMgnMylkdcXlycfJXbmCnodLYQKN5M9N05t5MGhFXgR4Gygcxw5p1bUVna08OeMoSAD747fMDsH2KocIHWGQxl7nF9VnUOa952hUyqzqjnvbfXQlUIr';
-const issuer = 'https://keycloak.lab.weltraumpflege.org/realms/OpenLab';
-const redirect = 'de.openlab.openlabflutter:/oauthredirect';
-const scopes = ['openid'];
+const redirect = 'de.openlab.openlabflutter:/oauth2redirect';
+const String logout = 'de.openlab.openlabflutter:/logout';
 const wellKnownUrl =
     "https://auth.openlab-augsburg.de/application/o/airlock/.well-known/openid-configuration";
 final store = OidcMemoryStore();
+
+enum BuzzType { inner, outer }
 
 class OpenDoor extends StatefulWidget {
   @override
@@ -47,15 +49,31 @@ class _OpenDoorState extends State<OpenDoor> {
     store: store,
     settings: OidcUserManagerSettings(
       //get any available port
-      redirectUri: Uri.parse('de.openlab.openlabflutter:/oauth2redirect'),
-      postLogoutRedirectUri: Uri.parse('de.openlab.openlabflutter:/logout'),
+      redirectUri: Uri.parse(redirect),
+      postLogoutRedirectUri: Uri.parse(logout),
+      scope: ['openid', 'profile', 'email', 'groups'],
     ),
   );
+
+  http.Client createHttpClient() {
+    final httpClient = HttpClient();
+    // Disable certificate verification
+    httpClient.badCertificateCallback = (
+      X509Certificate cert,
+      String host,
+      int port,
+    ) {
+      return true; // Accept all certificates
+    };
+
+    return IOClient(httpClient);
+  }
+
   @override
   void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       initValues();
-      await manager.init();
     });
 
     hce.setMethodCallHandler((MethodCall call) async {
@@ -68,19 +86,18 @@ class _OpenDoorState extends State<OpenDoor> {
     });
   }
 
-  Future<void> getAccessToken() async {
+  Future<String?> getAccessToken() async {
     String? accessToken = await loginOIDC();
+
     if (accessToken != null || accessToken!.isNotEmpty) {
-      print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
       DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
       var result = await hce.invokeMethod<bool>("accessToken", {
         "accessToken": accessToken,
         "expirationDate": expirationDate.toIso8601String(),
       });
-      print("after aaaaaaaaa");
-    } else {
       "Empty access token again";
     }
+    return accessToken;
     // if (accessToken.isEmpty) {
     //   String? accessToken = await loginKeykloak();
     //   setState(() {
@@ -103,6 +120,9 @@ class _OpenDoorState extends State<OpenDoor> {
 
   Future<String?> loginOIDC() async {
     print("Trying keycloak login on Android");
+    if (!manager.didInit) {
+      await manager.init();
+    }
 
     try {
       // Check if user is already logged in
@@ -112,7 +132,7 @@ class _OpenDoorState extends State<OpenDoor> {
 
         if (expiresIn != null && expiresIn.isNegative) {
           print("User already logged in with valid token");
-          return manager.currentUser!.token.accessToken;
+          return manager.currentUser!.token.idToken;
         }
 
         // Token is expired, try refreshing
@@ -123,9 +143,9 @@ class _OpenDoorState extends State<OpenDoor> {
             print("Token refreshed successfully");
             await setRefreshTokenAndAccessToken(
               refreshedUser.token.refreshToken,
-              refreshedUser.token.accessToken,
+              refreshedUser.token.idToken,
             );
-            return refreshedUser.token.accessToken;
+            return refreshedUser.token.idToken;
           }
         } catch (e) {
           print("Token refresh failed: $e");
@@ -138,12 +158,11 @@ class _OpenDoorState extends State<OpenDoor> {
       final OidcUser? user = await manager.loginAuthorizationCodeFlow();
 
       if (user != null) {
-        print("Login successful");
         await setRefreshTokenAndAccessToken(
           user.token.refreshToken,
-          user.token.accessToken,
+          user.token.idToken,
         );
-        return user.token.accessToken;
+        return user.token.idToken;
       } else {
         print("Login failed - user is null");
         return null;
@@ -202,6 +221,7 @@ class _OpenDoorState extends State<OpenDoor> {
     String u = await storage.read(key: "username") ?? "";
     String p = await storage.read(key: "password") ?? "";
     String r = await storage.read(key: "refreshToken") ?? "";
+    await manager.init();
     setState(() {
       this.username = u;
       this.password = p;
@@ -254,20 +274,31 @@ class _OpenDoorState extends State<OpenDoor> {
     }
   }
 
-  void outerDoor() async {
-    http.post(
-      Uri.parse("http://door-api:3000/api/buzzer"),
-      headers: {"Authentication": "Bearer $refreshToken"},
-      body: {"buzzer": "OUTER", "milliseconds": 100},
-    );
+  Future<void> buzz(BuzzType buzztype) async {
+    final client = createHttpClient();
+    String? accessToken = await getAccessToken();
+    print("https://airlockng.lab/api/buzz/${buzztype.name}?duration=500");
+    printWrapped(accessToken ?? "");
+    try {
+      final response = await client.post(
+        Uri.parse(
+          "https://airlockng.lab/api/buzz/${buzztype.name}?duration=500",
+        ),
+        headers: {"X-Authorization": accessToken!},
+      );
+      printWrapped(response.request!.headers.toString());
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+    } catch (e) {
+      print('Error: $e');
+    } finally {
+      client.close(); // Don't forget to close the client
+    }
   }
 
-  void innerDoor() async {
-    http.post(
-      Uri.parse("http://door-api:3000/api/buzzer"),
-      headers: {"Authentication": "Bearer $refreshToken"},
-      body: {"buzzer": "INNER", "milliseconds": 100},
-    );
+  void printWrapped(String text) {
+    final pattern = new RegExp('.{1,800}'); // 800 is the size of each chunk
+    pattern.allMatches(text).forEach((match) => print(match.group(0)));
   }
 
   @override
@@ -291,7 +322,7 @@ class _OpenDoorState extends State<OpenDoor> {
                     padding: const EdgeInsets.fromLTRB(0, 0, 2, 0),
                     child: ElevatedButton(
                       style: borderStyle,
-                      onPressed: outerDoor,
+                      onPressed: () async => await buzz(BuzzType.outer),
                       child: Text(
                         "Außentüre öffnen",
                         textAlign: TextAlign.center,
@@ -304,7 +335,7 @@ class _OpenDoorState extends State<OpenDoor> {
                     padding: const EdgeInsets.fromLTRB(2, 0, 0, 0),
                     child: ElevatedButton(
                       style: borderStyle,
-                      onPressed: innerDoor,
+                      onPressed: () async => buzz(BuzzType.inner),
                       child: Text(
                         "Innentüre öffnen",
                         textAlign: TextAlign.center,

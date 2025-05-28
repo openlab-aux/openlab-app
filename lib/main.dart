@@ -50,8 +50,8 @@ class _OpenlabState extends State<Openlab> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Openlab',
-      theme: DaisyUITheme.getLightTheme(),
-      darkTheme: DaisyUITheme.getDarkTheme(),
+      theme: OpenLabTheme.lightTheme,
+      darkTheme: OpenLabTheme.darkTheme,
       home: MainWidget(),
     );
   }
