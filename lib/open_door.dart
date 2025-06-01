@@ -91,14 +91,17 @@ class _OpenDoorState extends State<OpenDoor> {
   Future<String?> getAccessToken() async {
     String? accessToken = await loginOIDC();
 
-    if (accessToken != null || accessToken!.isNotEmpty) {
+    if (accessToken != null && accessToken.isNotEmpty) {
       DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
       var result = await hce.invokeMethod<bool>("accessToken", {
         "accessToken": accessToken,
         "expirationDate": expirationDate.toIso8601String(),
       });
-      "Empty access token again";
+      print("Access token sent to native layer");
+    } else {
+      print("Access token is null or empty");
     }
+
     return accessToken;
   }
 
