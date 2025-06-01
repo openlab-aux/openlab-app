@@ -216,7 +216,6 @@ class _OpenDoorState extends State<OpenDoor> {
     });
 
     try {
-      await emulate();
       if (Platform.isAndroid || Platform.isIOS) {
         await retry(() async {
           await WiFiForIoTPlugin.setEnabled(true, shouldOpenSettings: false);
