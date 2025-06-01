@@ -50,6 +50,7 @@ dependencies:
   mobile_scanner: ^6.0.0
   jwt_decoder: ^2.0.1
   oidc: ^0.10.0
+  udp: ^5.0.3
 
 dev_dependencies:
   flutter_test:

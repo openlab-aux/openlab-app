@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:openlabflutter/fun.dart';
 import 'package:openlabflutter/open_door.dart';
 import 'package:openlabflutter/presence.dart';
 import 'package:openlabflutter/projects.dart';
@@ -83,6 +84,9 @@ class _MainWidgetState extends State<MainWidget> {
       case 4:
         widget = Settings();
         break;
+      case 5:
+        widget = FunWidget();
+        break;
       default:
         widget = OpenDoor();
     }
@@ -107,6 +111,10 @@ class _MainWidgetState extends State<MainWidget> {
           BottomNavigationBarItem(
             icon: Icon(Icons.school),
             label: 'Einstellungen',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.celebration),
+            label: 'Spass',
           ),
         ],
       ),

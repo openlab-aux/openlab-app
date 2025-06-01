@@ -27,8 +27,9 @@ class _ProjectsState extends State<Projects> {
   Map<String, dynamic>? user;
   final FlutterSecureStorage storage = const FlutterSecureStorage();
 
-  RefreshController _refreshController =
-      RefreshController(initialRefresh: true);
+  RefreshController _refreshController = RefreshController(
+    initialRefresh: true,
+  );
 
   void initValues() async {
     String u = await storage.read(key: "nickname") ?? "";
@@ -81,12 +82,150 @@ class _ProjectsState extends State<Projects> {
       print(body);
       return users
           .where((element) => element["name"].toString().startsWith("P-"))
-          .map((e) =>
-              Project(e["id"], e["name"], e["balance"], e["updated"] ?? ""))
+          .map(
+            (e) =>
+                Project(e["id"], e["name"], e["balance"], e["updated"] ?? ""),
+          )
           .toList();
     } else {
       return null;
     }
+  }
+
+  Widget _buildProjectCard(Project project) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: InkWell(
+        onTap: () async {
+          print(username);
+          if (user != null) {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder:
+                    (context) => StrichlisteAdd(
+                      users: [],
+                      userId: user!["id"],
+                      recipientId: project.id,
+                      type: StrichlisteAddType.Project,
+                    ),
+              ),
+            );
+            _refreshController.requestRefresh();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                ),
+                backgroundColor: Theme.of(context).colorScheme.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Balance Container
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color:
+                      project.balance < 0
+                          ? Theme.of(context).colorScheme.errorContainer
+                          : Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  "${(project.balance / 100).toStringAsFixed(2)}€",
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color:
+                        project.balance < 0
+                            ? Theme.of(context).colorScheme.onErrorContainer
+                            : Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              SizedBox(width: 16),
+              // Project details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      project.name,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    if (project.updated.isNotEmpty) ...[
+                      SizedBox(height: 4),
+                      Text(
+                        project.updated,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Arrow icon
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.folder_open_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            SizedBox(height: 16),
+            Text(
+              "Keine Projekte vorhanden",
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -100,50 +239,28 @@ class _ProjectsState extends State<Projects> {
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> projectsView = [];
-    if (projects == null || projects!.isEmpty) {
-      projectsView.add(Center(
-        child: Text("Keine Transaktionen vorhanden"),
-      ));
-    } else {
-      for (Project project in projects!) {
-        projectsView.add(ListTile(
-          onTap: () async {
-            print(username);
-            if (user != null) {
-              await Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => StrichlisteAdd(
-                      users: [],
-                      userId: user!["id"],
-                      recipientId: project.id,
-                      type: StrichlisteAddType.Project)));
-              _refreshController.requestRefresh();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(
-                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-                backgroundColor: Colors.red,
-              ));
-            }
-          },
-          leading: Text(
-            "${(project.balance / 100).toStringAsFixed(2)}€",
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: project.balance < 0 ? Colors.red : Colors.green),
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      body: SafeArea(
+        child: SmartRefresher(
+          enablePullDown: true,
+          controller: _refreshController,
+          onRefresh: update,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child:
+                projects == null || projects!.isEmpty
+                    ? Center(child: _buildEmptyState())
+                    : ListView.separated(
+                      itemCount: projects!.length,
+                      separatorBuilder:
+                          (context, index) => SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        return _buildProjectCard(projects![index]);
+                      },
+                    ),
           ),
-          title: Text(project.name),
-          trailing: Text(project.updated),
-        ));
-        projectsView.add(Divider());
-      }
-    }
-    return SmartRefresher(
-      enablePullDown: true,
-      controller: _refreshController,
-      onRefresh: update,
-      child: ListView(
-        children: projectsView,
+        ),
       ),
     );
   }

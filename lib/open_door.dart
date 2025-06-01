@@ -39,6 +39,8 @@ class _OpenDoorState extends State<OpenDoor> {
   String password = "";
   String refreshToken = "";
   String accessToken = "";
+  bool _isLoading = false;
+
   // this will be changed in the NfcHce.stream listen callback
   final manager = OidcUserManager.lazy(
     discoveryDocumentUri: Uri.parse(wellKnownUrl),
@@ -98,24 +100,6 @@ class _OpenDoorState extends State<OpenDoor> {
       "Empty access token again";
     }
     return accessToken;
-    // if (accessToken.isEmpty) {
-    //   String? accessToken = await loginKeykloak();
-    //   setState(() {
-    //     this.accessToken = accessToken ?? "";
-    //   });
-    //   if (accessToken != null || accessToken!.isNotEmpty) {
-    //     print("Aaaaaaaaaaaa:" + (accessToken ?? ""));
-    //     var result = await hce
-    //         .invokeMethod<bool>("accessToken", {"accessToken": accessToken});
-    //     print("after aaaaaaaaa");
-    //   } else {
-    //     "Empty access token again";
-    //   }
-    // } else {
-    //   print("Using saved access token");
-    //   var result = await hce
-    //       .invokeMethod<bool>("accessToken", {"accessToken": this.accessToken});
-    // }
   }
 
   Future<String?> loginOIDC() async {
@@ -209,12 +193,6 @@ class _OpenDoorState extends State<OpenDoor> {
     } else {
       print("Nonononono");
     }
-    // // change port here
-    // var port = 0;
-    // // change data to transmit here
-    // var data = [12, 34, 56, 78, 90, 0xab, 0xcd, 0xef, 90, 00];
-    // await NfcHce.addApduResponse(port, data);
-    // print("Emulated the data");
   }
 
   void initValues() async {
@@ -227,18 +205,15 @@ class _OpenDoorState extends State<OpenDoor> {
       this.password = p;
       this.refreshToken = r;
     });
-
-    // NfcHce.stream.listen((command) {
-    //   print("Steeeeeeeeeeeeeeeeeeeeaaaaaaam");
-    //   print(command);
-    //   setState(() => nfcApduCommand = command);
-    // });
   }
 
   void connectWifi() async {
-    await emulate();
-    return;
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
+      await emulate();
       if (Platform.isAndroid || Platform.isIOS) {
         await retry(() async {
           await WiFiForIoTPlugin.setEnabled(true, shouldOpenSettings: false);
@@ -257,8 +232,33 @@ class _OpenDoorState extends State<OpenDoor> {
           print(await WiFiForIoTPlugin.getSSID());
         }, retryIf: (e) => WiFiForIoTPlugin.getSSID() != "Labor 2.0");
       }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Erfolgreich mit WiFi verbunden"),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       print(e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("WiFi-Verbindung fehlgeschlagen"),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -266,19 +266,26 @@ class _OpenDoorState extends State<OpenDoor> {
     if (username.isEmpty && password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
+          content: const Text(
             "Bitte gib erst in den Einstellungen deinen Username und dein Passwort ein!",
           ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
   Future<void> buzz(BuzzType buzztype) async {
+    setState(() {
+      _isLoading = true;
+    });
+
     final client = createHttpClient();
     String? accessToken = await getAccessToken();
     print("https://airlockng.lab/api/buzz/${buzztype.name}?duration=500");
     printWrapped(accessToken ?? "");
+
     try {
       final response = await client.post(
         Uri.parse(
@@ -289,10 +296,46 @@ class _OpenDoorState extends State<OpenDoor> {
       printWrapped(response.request!.headers.toString());
       print('Status: ${response.statusCode}');
       print('Body: ${response.body}');
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "${buzztype.name == 'outer' ? 'Außentüre' : 'Innentüre'} geöffnet",
+              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text("Fehler beim Öffnen der Türe"),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     } catch (e) {
       print('Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Netzwerkfehler beim Öffnen der Türe"),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } finally {
-      client.close(); // Don't forget to close the client
+      client.close();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -301,75 +344,179 @@ class _OpenDoorState extends State<OpenDoor> {
     pattern.allMatches(text).forEach((match) => print(match.group(0)));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ButtonStyle borderStyle = ElevatedButton.styleFrom(
-      textStyle: TextStyle(
-        fontSize: Theme.of(context).textTheme.headlineMedium!.fontSize,
+  Widget _buildDoorCard({
+    required String title,
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color backgroundColor,
+    required Color foregroundColor,
+  }) {
+    return Card(
+      elevation: 0,
+      color: backgroundColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: InkWell(
+        onTap: _isLoading ? null : onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 160,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 48, color: foregroundColor),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
 
-    return Column(
-      children: [
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
+  Widget _buildActionCard({
+    required String title,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: InkWell(
+        onTap: _isLoading ? null : onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 80,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (_isLoading) ...[
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          // Door control cards
+          Expanded(
+            flex: 3,
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 2, 0),
-                    child: ElevatedButton(
-                      style: borderStyle,
-                      onPressed: () async => await buzz(BuzzType.outer),
-                      child: Text(
-                        "Außentüre öffnen",
-                        textAlign: TextAlign.center,
-                      ),
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _buildDoorCard(
+                      title: "Außentüre\nöffnen",
+                      icon: Icons.door_front_door,
+                      onPressed: () => buzz(BuzzType.outer),
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
                   ),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(2, 0, 0, 0),
-                    child: ElevatedButton(
-                      style: borderStyle,
-                      onPressed: () async => buzz(BuzzType.inner),
-                      child: Text(
-                        "Innentüre öffnen",
-                        textAlign: TextAlign.center,
-                      ),
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildDoorCard(
+                      title: "Innentüre\nöffnen",
+                      icon: Icons.door_back_door,
+                      onPressed: () => buzz(BuzzType.inner),
+                      backgroundColor:
+                          Theme.of(context).colorScheme.secondaryContainer,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onSecondaryContainer,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 0, 4.0, 16),
-                child: ElevatedButton(
-                  onPressed: connectWifi,
-                  child: const Text("Mit Wifi verbinden"),
+
+          const SizedBox(height: 24),
+
+          // Action cards
+          Expanded(
+            flex: 2,
+            child: Column(
+              children: [
+                Expanded(
+                  child: _buildActionCard(
+                    title: "Mit WiFi verbinden",
+                    icon: Icons.wifi,
+                    onPressed: connectWifi,
+                  ),
                 ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4.0, 0, 16.0, 16),
-                child: ElevatedButton(
-                  onPressed: getAccessToken,
-                  child: const Text("Authentik login"),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _buildActionCard(
+                    title: "Authentik Login",
+                    icon: Icons.login,
+                    onPressed: getAccessToken,
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

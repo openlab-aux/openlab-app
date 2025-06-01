@@ -31,8 +31,14 @@ class Transaction {
   int? reciepient;
   String created;
   String articleName;
-  Transaction(this.id, this.amount, this.deleted, this.comment, this.created,
-      this.articleName);
+  Transaction(
+    this.id,
+    this.amount,
+    this.deleted,
+    this.comment,
+    this.created,
+    this.articleName,
+  );
 }
 
 class User {
@@ -54,32 +60,41 @@ class _StrichlisteState extends State<Strichliste> {
   int lastTransaction = -1;
   Map<String, dynamic>? user;
   List<Transaction>? transactions;
-  RefreshController _refreshController =
-      RefreshController(initialRefresh: true);
+  RefreshController _refreshController = RefreshController(
+    initialRefresh: true,
+  );
   bool nfcAvailable = true;
+  bool _mounted = true;
+
+  @override
+  void dispose() {
+    _mounted = false;
+    super.dispose();
+  }
 
   Future<void> update() async {
     print("updating");
 
     Map<String, dynamic>? user = await getUser();
     print(user);
-    setState(() {
-      this.user = user;
-    });
+    if (_mounted) {
+      setState(() {
+        this.user = user;
+      });
+    }
     if (user != null) {
       List<Transaction>? transactions = await getTransactions(user!["id"]);
       if (transactions != null) {
-        transactions.sort(
-          (a, b) {
-            return DateTime.parse(a.created)
-                .compareTo(DateTime.parse(b.created));
-          },
-        );
+        transactions.sort((a, b) {
+          return DateTime.parse(a.created).compareTo(DateTime.parse(b.created));
+        });
         transactions = transactions.reversed.toList();
       }
-      setState(() {
-        this.transactions = transactions;
-      });
+      if (_mounted) {
+        setState(() {
+          this.transactions = transactions;
+        });
+      }
     }
     _refreshController.refreshCompleted();
     readNFC();
@@ -141,7 +156,8 @@ class _StrichlisteState extends State<Strichliste> {
       List<dynamic> transactions = body["transactions"];
       print("transaction body ${body}");
       return transactions
-          .map((e) => Transaction(
+          .map(
+            (e) => Transaction(
               e["id"],
               e["amount"],
               e["deleted"] ?? false,
@@ -151,7 +167,9 @@ class _StrichlisteState extends State<Strichliste> {
                       e["article"] != null &&
                       e["article"].containsKey("name")
                   ? e["article"]["name"]
-                  : ""))
+                  : "",
+            ),
+          )
           .toList();
     } else {
       return null;
@@ -161,15 +179,23 @@ class _StrichlisteState extends State<Strichliste> {
   Future<void> addMoney(int amount, int userId) async {
     var uri = Uri.parse("$strichliste/user/${userId}/transaction");
     var body = {"amount": amount};
-    var result = await http.post(uri,
-        headers: {"Content-Type": "application/json"}, body: jsonEncode(body));
+    var result = await http.post(
+      uri,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(body),
+    );
     if (result.statusCode == 200) {
       Navigator.of(context).pop();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.body),
-        backgroundColor: Colors.red,
-      ));
+      if (_mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.body),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -177,34 +203,48 @@ class _StrichlisteState extends State<Strichliste> {
     if (article == null || userId == -1) return;
     print("Addding transaction!!");
     var uri = Uri.parse("$strichliste/user/${userId}/transaction");
-    var result = await http.post(uri,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "articleId": article.articleId,
-          "amount": -article.amount,
-          "quantity": 1
-        }));
+    var result = await http.post(
+      uri,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "articleId": article.articleId,
+        "amount": -article.amount,
+        "quantity": 1,
+      }),
+    );
     if (result.statusCode == 200) {
       print(result.body);
       var body = jsonDecode(result.body) as Map<String, dynamic>;
       int transactionId = body["transaction"]["id"];
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            "Du hast ${article.name} für ${article.amount / 100}€ gekauft"),
-        backgroundColor: Colors.red,
-        action: SnackBarAction(
-          label: "undo",
-          onPressed: () {
-            undoTransaction(transactionId, userId);
-          },
-        ),
-      ));
+      if (_mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Du hast ${article.name} für ${article.amount / 100}€ gekauft",
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: "Rückgängig",
+              textColor: Theme.of(context).colorScheme.onPrimary,
+              onPressed: () {
+                undoTransaction(transactionId, userId);
+              },
+            ),
+          ),
+        );
+      }
     } else {
       print(result.body);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Konnte Artikel nicht hinzufügen"),
-        backgroundColor: Colors.red,
-      ));
+      if (_mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Konnte Artikel nicht hinzufügen"),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -214,8 +254,15 @@ class _StrichlisteState extends State<Strichliste> {
       headers: {"Content-Type": "application/json"},
     );
     if (result.statusCode >= 400) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Undo successfull!")));
+      if (_mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Rückgängig erfolgreich!"),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -223,22 +270,25 @@ class _StrichlisteState extends State<Strichliste> {
     var availability = await FlutterNfcKit.nfcAvailability;
 
     if (availability != NFCAvailability.available) {
-      // oh-no
-      setState(() {
-        nfcAvailable = false;
-      });
+      if (_mounted) {
+        setState(() {
+          nfcAvailable = false;
+        });
+      }
       print("NFC not available");
       return;
     } else {
-      // timeout only works on Android, while the latter two messages are only for iOS
-      setState(() {
-        nfcAvailable = true;
-      });
+      if (_mounted) {
+        setState(() {
+          nfcAvailable = true;
+        });
+      }
     }
     var tag = await FlutterNfcKit.poll(
-        timeout: const Duration(days: 9),
-        iosMultipleTagMessage: "Multiple tags found!",
-        iosAlertMessage: "Scan your tag");
+      timeout: const Duration(days: 9),
+      iosMultipleTagMessage: "Multiple tags found!",
+      iosAlertMessage: "Scan your tag",
+    );
     print(jsonEncode(tag));
     List<NDEFRecord> result = await FlutterNfcKit.readNDEFRecords();
     if (result.length > 0) {
@@ -261,11 +311,17 @@ class _StrichlisteState extends State<Strichliste> {
           await addTransaction(article, userId);
           update();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-            backgroundColor: Colors.red,
-          ));
+          if (_mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                ),
+                backgroundColor: Theme.of(context).colorScheme.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       }
       if (match != null && match!.group(1) == "enSpende") {
@@ -282,35 +338,49 @@ class _StrichlisteState extends State<Strichliste> {
             builder: (context) {
               return AlertDialog(
                 title: Text(
-                    "Hast du gerade ${(int.parse(cent) / 100).toString()}€ eingezahlt?"),
+                  "Hast du gerade ${(int.parse(cent) / 100).toString()}€ eingezahlt?",
+                ),
                 actions: [
                   TextButton(
-                      child: const Text("Ja"),
-                      onPressed: () async {
-                        addMoney(int.parse(cent), userId);
-                      }),
+                    child: const Text("Ja"),
+                    onPressed: () async {
+                      addMoney(int.parse(cent), userId);
+                    },
+                  ),
                   TextButton(
-                      child: const Text("Nein"),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      })
+                    child: const Text("Nein"),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
                 ],
               );
             },
           );
           update();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-            backgroundColor: Colors.red,
-          ));
+          if (_mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                ),
+                backgroundColor: Theme.of(context).colorScheme.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Kein Strichlisten-NFC Tag"),
-          backgroundColor: Colors.red,
-        ));
+        if (_mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text("Kein Strichlisten-NFC Tag"),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     }
   }
@@ -321,9 +391,11 @@ class _StrichlisteState extends State<Strichliste> {
     String u = await storage.read(key: "nickname") ?? "";
 
     print("username: $u");
-    setState(() {
-      this.username = u;
-    });
+    if (_mounted) {
+      setState(() {
+        this.username = u;
+      });
+    }
     await update();
   }
 
@@ -337,209 +409,426 @@ class _StrichlisteState extends State<Strichliste> {
     });
   }
 
+  Widget _buildTransactionCard(Transaction transaction) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color:
+                    transaction.amount < 0
+                        ? Theme.of(context).colorScheme.errorContainer
+                        : Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                "${(transaction.amount / 100).toStringAsFixed(2)}€",
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color:
+                      transaction.amount < 0
+                          ? Theme.of(context).colorScheme.onErrorContainer
+                          : Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    transaction.articleName.isEmpty
+                        ? transaction.comment
+                        : transaction.articleName,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    transaction.created,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (user == null) {
+      return Center(
+        child: Card(
+          margin: EdgeInsets.all(16),
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  "Benutzer konfigurieren",
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Bitte konfiguriere erst deinen Benutzer in den Einstellungen",
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     List<Widget> transactionsView = [];
 
-    if (user == null)
-      return const Center(
-          child: Text(
-              "Bitte konfiguriere erst deinen Benutzer in den Einstellungen"));
     if (transactions == null || transactions!.isEmpty) {
-      transactionsView.add(const Center(
-        child: Text("Keine Transaktionen vorhanden"),
-      ));
-    } else {
-      for (Transaction transaction in transactions!) {
-        transactionsView.add(ListTile(
-          leading: Text(
-            "${(transaction.amount / 100).toStringAsFixed(2)}€",
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: transaction.amount < 0 ? Colors.red : Colors.green),
-          ),
-          title: Text(transaction.articleName.isEmpty
-              ? transaction.comment
-              : transaction.articleName),
-          trailing: Text(transaction.created),
-        ));
-      }
-    }
-    return Stack(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(0, 90, 0, 0),
-        child: SmartRefresher(
-          enablePullDown: true,
-          controller: _refreshController,
-          onRefresh: update,
-          child: ListView(children: transactionsView),
-        ),
-      ),
-      if (nfcAvailable)
-        const Positioned(
-            top: 2,
-            right: 2,
-            left: 2,
-            child: Card(
-                child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+      transactionsView.add(
+        Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Column(
               children: [
-                Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: const Text(
-                    "Halte dein Smartphone an den passenden\nNFC Tag um ein Buchung durchzuführen",
-                    textAlign: TextAlign.center,
+                Icon(
+                  Icons.receipt_long_outlined,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  "Keine Transaktionen",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                Icon(
-                  Icons.nfc,
-                  size: 20,
-                )
+                Text(
+                  "Es sind noch keine Transaktionen vorhanden",
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  ),
+                ),
               ],
-            ))),
-      Positioned(
-          bottom: 0,
-          right: 2,
-          left: 2,
-          child: Card(
+            ),
+          ),
+        ),
+      );
+    } else {
+      for (Transaction transaction in transactions!) {
+        transactionsView.add(_buildTransactionCard(transaction));
+      }
+    }
+
+    return Stack(
+      children: [
+        // Main content area with proper spacing for cards
+        Padding(
+          padding: const EdgeInsets.only(top: 100, bottom: 120),
+          child: SmartRefresher(
+            enablePullDown: true,
+            controller: _refreshController,
+            onRefresh: update,
+            child: ListView(
+              padding: EdgeInsets.only(bottom: 16),
+              children: transactionsView,
+            ),
+          ),
+        ),
+
+        // NFC Card at top
+        if (nfcAvailable)
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Card(
+              elevation: 0,
+              color: Theme.of(context).colorScheme.primaryContainer,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(children: [
-                    const Text("Kontostand: ",
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
-                    Text("${(user!["balance"] / 100).toString()}€",
-                        style: TextStyle(
-                            color: user!["balance"] >= 0
-                                ? Colors.green
-                                : Colors.red,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold))
-                  ])))),
-      Positioned(
-        bottom: 160,
-        right: 20,
-        child: FloatingActionButton(
-          heroTag: "send",
-          child: const Icon(Icons.send),
-          onPressed: () async {
-            List<User>? users = await getUsers();
-            if (user != null) {
-              await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => StrichlisteAdd(
-                    userId: user!["id"],
-                    users: users,
-                    type: StrichlisteAddType.Send),
-              ));
-              _refreshController.requestRefresh();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text(
-                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-                backgroundColor: Colors.red,
-              ));
-            }
-          },
+                padding: EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.nfc,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Halte dein Smartphone an den NFC Tag um eine Buchung durchzuführen",
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // Balance Card at bottom
+        Positioned(
+          bottom: 16,
+          left: 16,
+          right: 16,
+          child: Card(
+            elevation: 0,
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Kontostand: ",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color:
+                          user!["balance"] >= 0
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "${(user!["balance"] / 100).toString()}€",
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color:
+                            user!["balance"] >= 0
+                                ? Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer
+                                : Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
-      Positioned(
-        bottom: 90,
-        right: 20,
-        child: FloatingActionButton(
-          heroTag: "topUp",
-          child: const Icon(Icons.wallet),
-          onPressed: () async {
-            List<User>? users = await getUsers();
-            if (user != null) {
-              await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => StrichlisteAdd(
-                    userId: user!["id"],
-                    users: users,
-                    type: StrichlisteAddType.Topup),
-              ));
-              _refreshController.requestRefresh();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text(
-                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-                backgroundColor: Colors.red,
-              ));
-            }
-          },
+
+        // Floating Action Buttons
+        Positioned(
+          bottom: 180,
+          right: 20,
+          child: FloatingActionButton(
+            heroTag: "send",
+            child: const Icon(Icons.send),
+            onPressed: () async {
+              List<User>? users = await getUsers();
+              if (user != null) {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (context) => StrichlisteAdd(
+                          userId: user!["id"],
+                          users: users,
+                          type: StrichlisteAddType.Send,
+                        ),
+                  ),
+                );
+                _refreshController.requestRefresh();
+              } else {
+                if (_mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text(
+                        "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
         ),
-      ),
-      Positioned(
-        bottom: 20,
-        right: 20,
-        child: FloatingActionButton(
-          heroTag: "buy",
-          child: const Icon(Icons.euro),
-          onPressed: () async {
-            List<User>? users = await getUsers();
-            if (user != null) {
-              await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => StrichlisteAdd(
-                    userId: user!["id"],
-                    users: users,
-                    type: StrichlisteAddType.Buy),
-              ));
-              _refreshController.requestRefresh();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text(
-                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-                backgroundColor: Colors.red,
-              ));
-            }
-          },
-        ),
-      ),
-      Positioned(
-        bottom: 20,
-        right: 90,
-        child: FloatingActionButton(
-          heroTag: "barcodeScan",
-          child: const Icon(Icons.barcode_reader),
-          onPressed: () async {
-            List<User>? users = await getUsers();
-            print(users);
-            if (user != null) {
-              BarcodeCapture? capture =
-                  await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => Scanner(),
-              ));
-              if (capture != null &&
-                  capture.barcodes.isNotEmpty &&
-                  capture.barcodes.first.rawValue != null &&
-                  int.tryParse(capture.barcodes.first.rawValue!) != null) {
-                Article? article =
-                    await getArticle(capture.barcodes.first.rawValue!);
-                if (article != null) {
-                  await addTransaction(article, user!["id"]);
-                  print("After add transaction");
-                  _refreshController.requestRefresh();
+        Positioned(
+          bottom: 180,
+          left: 90,
+          child: FloatingActionButton(
+            heroTag: "barcodeScan",
+            child: const Icon(Icons.qr_code_scanner),
+            onPressed: () async {
+              List<User>? users = await getUsers();
+              print(users);
+              if (user != null) {
+                BarcodeCapture? capture = await Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (context) => Scanner()));
+                if (capture != null &&
+                    capture.barcodes.isNotEmpty &&
+                    capture.barcodes.first.rawValue != null &&
+                    int.tryParse(capture.barcodes.first.rawValue!) != null) {
+                  Article? article = await getArticle(
+                    capture.barcodes.first.rawValue!,
+                  );
+                  if (article != null) {
+                    await addTransaction(article, user!["id"]);
+                    print("After add transaction");
+                    _refreshController.requestRefresh();
+                  } else {
+                    if (_mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text("Konnte Artikel nicht finden"),
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text("Konnte Artikel nicht finden"),
-                    backgroundColor: Colors.red,
-                  ));
+                  if (_mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text("Etwas ist leider schief gelaufen"),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 }
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text("Etwas ist leider schief gelaufen"),
-                  backgroundColor: Colors.red,
-                ));
+                if (_mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text(
+                        "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               }
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text(
-                    "Bitte hinterlege erst deinen Usernamen in den Einstellungen"),
-                backgroundColor: Colors.red,
-              ));
-            }
-          },
+            },
+          ),
         ),
-      )
-    ]);
+        Positioned(
+          bottom: 110,
+          right: 20,
+          child: FloatingActionButton(
+            heroTag: "topUp",
+            child: const Icon(Icons.account_balance_wallet),
+            onPressed: () async {
+              List<User>? users = await getUsers();
+              if (user != null) {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (context) => StrichlisteAdd(
+                          userId: user!["id"],
+                          users: users,
+                          type: StrichlisteAddType.Topup,
+                        ),
+                  ),
+                );
+                _refreshController.requestRefresh();
+              } else {
+                if (_mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text(
+                        "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+        Positioned(
+          bottom: 110,
+          left: 20,
+          child: FloatingActionButton.extended(
+            heroTag: "buy",
+            icon: const Icon(Icons.shopping_cart),
+            label: const Text("Kaufen"),
+            onPressed: () async {
+              List<User>? users = await getUsers();
+              if (user != null) {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (context) => StrichlisteAdd(
+                          userId: user!["id"],
+                          users: users,
+                          type: StrichlisteAddType.Buy,
+                        ),
+                  ),
+                );
+                _refreshController.requestRefresh();
+              } else {
+                if (_mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text(
+                        "Bitte hinterlege erst deinen Usernamen in den Einstellungen",
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
