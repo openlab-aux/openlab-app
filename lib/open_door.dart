@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:oidc_default_store/oidc_default_store.dart';
 import 'package:openlabflutter/main.dart';
 import 'dart:io' show Platform;
 import 'package:retry/retry.dart';
@@ -24,38 +25,24 @@ const redirect = 'de.openlab.openlabflutter:/oauth2redirect';
 const String logout = 'de.openlab.openlabflutter:/logout';
 const wellKnownUrl =
     "https://auth.openlab-augsburg.de/application/o/airlock/.well-known/openid-configuration";
-final store = OidcMemoryStore();
+final store = OidcDefaultStore();
 
 enum BuzzType { inner, outer }
 
 class OpenDoor extends StatefulWidget {
+  OidcUserManager oidcManager;
+  Function getAccessToken;
+  OpenDoor({required this.oidcManager, required this.getAccessToken});
+
   @override
   _OpenDoorState createState() => _OpenDoorState();
 }
 
 class _OpenDoorState extends State<OpenDoor> {
   final FlutterSecureStorage storage = const FlutterSecureStorage();
-  String username = "";
-  String password = "";
-  String refreshToken = "";
-  String accessToken = "";
   bool _isLoading = false;
-
-  // this will be changed in the NfcHce.stream listen callback
-  final manager = OidcUserManager.lazy(
-    discoveryDocumentUri: Uri.parse(wellKnownUrl),
-    clientCredentials: const OidcClientAuthentication.clientSecretBasic(
-      clientId: clientId,
-      clientSecret: clientSecret,
-    ),
-    store: store,
-    settings: OidcUserManagerSettings(
-      //get any available port
-      redirectUri: Uri.parse(redirect),
-      postLogoutRedirectUri: Uri.parse(logout),
-      scope: ['openid', 'profile', 'email', 'groups'],
-    ),
-  );
+  bool innerDoorLoading = false;
+  bool outerDoorLoading = false;
 
   http.Client createHttpClient() {
     final httpClient = HttpClient();
@@ -71,13 +58,14 @@ class _OpenDoorState extends State<OpenDoor> {
     return IOClient(httpClient);
   }
 
+  Future<String?> getAccessToken() async {
+    return await widget.getAccessToken();
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      initValues();
-    });
-
+    this.widget.oidcManager.init();
     hce.setMethodCallHandler((MethodCall call) async {
       print(call.method);
       switch (call.method) {
@@ -86,90 +74,7 @@ class _OpenDoorState extends State<OpenDoor> {
           print("Finished getting access Token");
       }
     });
-  }
-
-  Future<String?> getAccessToken() async {
-    String? accessToken = await loginOIDC();
-
-    if (accessToken != null && accessToken.isNotEmpty) {
-      DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
-      var result = await hce.invokeMethod<bool>("accessToken", {
-        "accessToken": accessToken,
-        "expirationDate": expirationDate.toIso8601String(),
-      });
-      print("Access token sent to native layer");
-    } else {
-      print("Access token is null or empty");
-    }
-
-    return accessToken;
-  }
-
-  Future<String?> loginOIDC() async {
-    print("Trying keycloak login on Android");
-    if (!manager.didInit) {
-      await manager.init();
-    }
-
-    try {
-      // Check if user is already logged in
-      if (manager.currentUser != null) {
-        // Check if token is expired based on expiration time
-        final Duration? expiresIn = manager.currentUser?.token.expiresIn;
-
-        if (expiresIn != null && expiresIn.isNegative) {
-          print("User already logged in with valid token");
-          return manager.currentUser!.token.idToken;
-        }
-
-        // Token is expired, try refreshing
-        print("Token expired, attempting refresh");
-        try {
-          final refreshedUser = await manager.refreshToken();
-          if (refreshedUser != null) {
-            print("Token refreshed successfully");
-            await setRefreshTokenAndAccessToken(
-              refreshedUser.token.refreshToken,
-              refreshedUser.token.idToken,
-            );
-            return refreshedUser.token.idToken;
-          }
-        } catch (e) {
-          print("Token refresh failed: $e");
-          // Continue to new login flow
-        }
-      }
-
-      // Initiate login process
-      print("Initiating new login flow");
-      final OidcUser? user = await manager.loginAuthorizationCodeFlow();
-
-      if (user != null) {
-        await setRefreshTokenAndAccessToken(
-          user.token.refreshToken,
-          user.token.idToken,
-        );
-        return user.token.idToken;
-      } else {
-        print("Login failed - user is null");
-        return null;
-      }
-    } catch (e, stackTrace) {
-      print("OIDC login error: $e");
-      print("Stack trace: $stackTrace");
-      return null;
-    }
-  }
-
-  Future<void> setRefreshTokenAndAccessToken(
-    String? refreshToken,
-    String? accessToken,
-  ) async {
-    await storage.write(key: "refreshToken", value: refreshToken);
-    setState(() {
-      refreshToken = refreshToken ?? "";
-      accessToken = accessToken ?? "";
-    });
+    this.widget.oidcManager.userChanges().listen((user) {});
   }
 
   Future<void> readNFC() async {
@@ -188,32 +93,22 @@ class _OpenDoorState extends State<OpenDoor> {
 
   Future<void> emulate() async {
     var result = await hce.invokeMethod<bool>("startHCE");
-    if (result == true) {
+    if (result == true && this.widget.oidcManager.currentUser != null) {
       print("Yeah called the method");
-      var result = await hce.invokeMethod<bool>("accessToken", {
-        "accessToken": accessToken,
+      hce.invokeMethod<bool>("accessToken", {
+        "accessToken": this.widget.oidcManager.currentUser!.token.idToken,
       });
     } else {
       print("Nonononono");
     }
   }
 
-  void initValues() async {
-    String u = await storage.read(key: "username") ?? "";
-    String p = await storage.read(key: "password") ?? "";
-    String r = await storage.read(key: "refreshToken") ?? "";
-    await manager.init();
-    setState(() {
-      this.username = u;
-      this.password = p;
-      this.refreshToken = r;
-    });
-  }
-
   void connectWifi() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       if (Platform.isAndroid || Platform.isIOS) {
@@ -264,25 +159,10 @@ class _OpenDoorState extends State<OpenDoor> {
     }
   }
 
-  void checkCreds() {
-    if (username.isEmpty && password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            "Bitte gib erst in den Einstellungen deinen Username und dein Passwort ein!",
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   Future<void> buzz(BuzzType buzztype) async {
     setState(() {
       _isLoading = true;
     });
-
     final client = createHttpClient();
     String? accessToken = await getAccessToken();
     print("https://airlockng.lab/api/buzz/${buzztype.name}?duration=500");
@@ -355,7 +235,7 @@ class _OpenDoorState extends State<OpenDoor> {
   }) {
     return Card(
       elevation: 0,
-      color: backgroundColor,
+      color: _isLoading ? Theme.of(context).disabledColor : backgroundColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
@@ -371,7 +251,21 @@ class _OpenDoorState extends State<OpenDoor> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 48, color: foregroundColor),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color:
+                      _isLoading
+                          ? Theme.of(context).dividerColor
+                          : Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
               const SizedBox(height: 12),
               Text(
                 title,
@@ -381,6 +275,24 @@ class _OpenDoorState extends State<OpenDoor> {
                 ),
                 textAlign: TextAlign.center,
               ),
+              if (_isLoading) ...[
+                const SizedBox(width: 16),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color:
+                          Theme.of(context).colorScheme.primary ==
+                                  backgroundColor
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -395,7 +307,10 @@ class _OpenDoorState extends State<OpenDoor> {
   }) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      color:
+          _isLoading
+              ? Theme.of(context).disabledColor
+              : Theme.of(context).colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
@@ -413,7 +328,10 @@ class _OpenDoorState extends State<OpenDoor> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color:
+                      _isLoading
+                          ? Theme.of(context).dividerColor
+                          : Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -433,12 +351,15 @@ class _OpenDoorState extends State<OpenDoor> {
               ),
               if (_isLoading) ...[
                 const SizedBox(width: 16),
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Theme.of(context).colorScheme.primary,
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ],
@@ -455,45 +376,6 @@ class _OpenDoorState extends State<OpenDoor> {
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          // Door control cards
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _buildDoorCard(
-                      title: "Außentüre\nöffnen",
-                      icon: Icons.door_front_door,
-                      onPressed: () => buzz(BuzzType.outer),
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
-                      foregroundColor:
-                          Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: _buildDoorCard(
-                      title: "Innentüre\nöffnen",
-                      icon: Icons.door_back_door,
-                      onPressed: () => buzz(BuzzType.inner),
-                      backgroundColor:
-                          Theme.of(context).colorScheme.secondaryContainer,
-                      foregroundColor:
-                          Theme.of(context).colorScheme.onSecondaryContainer,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
           // Action cards
           Expanded(
             flex: 2,
@@ -512,6 +394,50 @@ class _OpenDoorState extends State<OpenDoor> {
                     title: "Authentik Login",
                     icon: Icons.login,
                     onPressed: getAccessToken,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Door control cards
+          const SizedBox(height: 5),
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: SizedBox.expand(
+                      // <-- Use SizedBox.expand here
+                      child: _buildDoorCard(
+                        title: "Außentüre\nöffnen",
+                        icon: Icons.door_front_door,
+                        onPressed: () => buzz(BuzzType.outer),
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: SizedBox.expand(
+                      // <-- Use SizedBox.expand here
+                      child: _buildDoorCard(
+                        title: "Innentüre\nöffnen",
+                        icon: Icons.door_back_door,
+                        onPressed: () => buzz(BuzzType.inner),
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                    ),
                   ),
                 ),
               ],

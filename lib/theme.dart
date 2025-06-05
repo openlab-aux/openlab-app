@@ -60,7 +60,7 @@ class OpenLabTheme {
     ),
 
     // Cards - modern, subtle elevation
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       // Changed from CardTheme to CardThemeData
       color: white,
       elevation: 2,
@@ -312,7 +312,7 @@ class OpenLabTheme {
       iconTheme: IconThemeData(color: Color(0xFFF1F5F9)),
     ),
 
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       // Changed from CardTheme to CardThemeData
       color: Color(0xFF1E293B),
       elevation: 2,

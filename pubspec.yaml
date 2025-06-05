@@ -51,6 +51,7 @@ dependencies:
   jwt_decoder: ^2.0.1
   oidc: ^0.10.0
   udp: ^5.0.3
+  oidc_default_store: ^0.2.0+15
 
 dev_dependencies:
   flutter_test:

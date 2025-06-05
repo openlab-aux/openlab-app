@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:oidc/oidc.dart';
 import 'package:openlabflutter/fun.dart';
 import 'package:openlabflutter/open_door.dart';
 import 'package:openlabflutter/presence.dart';
@@ -65,12 +67,102 @@ class MainWidget extends StatefulWidget {
 
 class _MainWidgetState extends State<MainWidget> {
   int _selectedIndex = 0;
+
+  final manager = OidcUserManager.lazy(
+    discoveryDocumentUri: Uri.parse(wellKnownUrl),
+    clientCredentials: const OidcClientAuthentication.clientSecretBasic(
+      clientId: clientId,
+      clientSecret: clientSecret,
+    ),
+    store: store,
+    settings: OidcUserManagerSettings(
+      //get any available port
+      redirectUri: Uri.parse(redirect),
+      postLogoutRedirectUri: Uri.parse(logout),
+      scope: ['openid', 'profile', 'email', 'groups'],
+      supportOfflineAuth: true,
+    ),
+  );
+
+  Future<String?> getAccessToken() async {
+    String? accessToken = await loginOIDC();
+
+    if (accessToken != null && accessToken.isNotEmpty) {
+      DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
+      hce.invokeMethod<bool>("accessToken", {
+        "accessToken": accessToken,
+        "expirationDate": expirationDate.toIso8601String(),
+      });
+      print("Access token sent to native layer");
+    } else {
+      print("Access token is null or empty");
+    }
+
+    return accessToken;
+  }
+
+  Future<String?> loginAuthorizationCodeFlow() async {
+    final OidcUser? user = await manager.loginAuthorizationCodeFlow();
+    if (user != null) {
+      return user.token.idToken;
+    } else {
+      print("Login failed - user is null");
+      return null;
+    }
+  }
+
+  Future<String?> loginOIDC() async {
+    print("Trying oidc login on Android");
+    if (!manager.didInit) {
+      await manager.init();
+    }
+
+    try {
+      // Check if user is already logged in
+      if (manager.currentUser != null &&
+          manager.currentUser!.token.idToken != null) {
+        // Check if token is expired based on expiration time
+        //
+        DateTime expirationDate = JwtDecoder.getExpirationDate(
+          manager.currentUser!.token.idToken!,
+        );
+        if (expirationDate.compareTo(DateTime.now()) >= 0) {
+          print("User already logged in with valid token");
+          return manager.currentUser!.token.idToken;
+        }
+
+        // Token is expired, try refreshing
+        print("Token expired, attempting refresh");
+        try {
+          final refreshedUser = await manager.refreshToken();
+          if (refreshedUser != null) {
+            print("Token refreshed successfully");
+            return refreshedUser.token.idToken;
+          } else {
+            print("Token refresh failed");
+            return loginAuthorizationCodeFlow();
+          }
+        } catch (e) {
+          print("Token refresh failed: $e");
+        }
+      } else {
+        print("Loging in user");
+        return loginAuthorizationCodeFlow();
+      }
+    } catch (e, stackTrace) {
+      print("OIDC login error: $e");
+      print("Stack trace: $stackTrace");
+      return null;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    Widget widget = OpenDoor();
+    Widget widget;
     switch (_selectedIndex) {
       case 0:
-        widget = OpenDoor();
+        widget = OpenDoor(oidcManager: manager, getAccessToken: getAccessToken);
         break;
       case 1:
         widget = Presence();
@@ -88,7 +180,7 @@ class _MainWidgetState extends State<MainWidget> {
         widget = FunWidget();
         break;
       default:
-        widget = OpenDoor();
+        widget = OpenDoor(oidcManager: manager, getAccessToken: getAccessToken);
     }
 
     return Scaffold(

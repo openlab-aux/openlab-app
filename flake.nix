@@ -26,6 +26,7 @@
           toolsVersion = "26.1.1";
           buildToolsVersions = [
             buildToolsVersion
+            "34.0.0"
             "30.0.3"
           ];
           platformVersions = [
