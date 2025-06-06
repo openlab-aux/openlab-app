@@ -48,41 +48,6 @@ class _SettingsState extends State<Settings> {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
-            child: TextFormField(
-              controller: usernameController,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                label: Text("Authentik Username"),
-              ),
-              onChanged:
-                  (value) async => {
-                    setState(() {
-                      username = value;
-                    }),
-                    await storage.write(key: "username", value: value),
-                  },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextFormField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                label: Text("Authentik Password"),
-              ),
-              onChanged:
-                  (value) async => {
-                    setState(() {
-                      password = password;
-                    }),
-                    await storage.write(key: "password", value: value),
-                  },
-            ),
-          ),
-          Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextFormField(
               controller: nicknameController,

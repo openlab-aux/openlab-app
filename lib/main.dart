@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:network_tools_flutter/network_tools_flutter.dart';
 import 'package:oidc/oidc.dart';
+import 'package:oidc_default_store/oidc_default_store.dart';
+import 'package:openlabflutter/calendar.dart';
 import 'package:openlabflutter/fun.dart';
 import 'package:openlabflutter/open_door.dart';
 import 'package:openlabflutter/presence.dart';
@@ -10,6 +13,7 @@ import 'dart:typed_data';
 
 import 'package:openlabflutter/strichliste.dart';
 import 'package:openlabflutter/theme.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   // WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +41,9 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
+  await configureNetworkToolsFlutter(
+    (await getApplicationDocumentsDirectory()).path,
+  );
   runApp(const Openlab());
 }
 
@@ -68,23 +75,30 @@ class MainWidget extends StatefulWidget {
 class _MainWidgetState extends State<MainWidget> {
   int _selectedIndex = 0;
 
-  final manager = OidcUserManager.lazy(
-    discoveryDocumentUri: Uri.parse(wellKnownUrl),
-    clientCredentials: const OidcClientAuthentication.clientSecretBasic(
-      clientId: clientId,
-      clientSecret: clientSecret,
-    ),
-    store: store,
-    settings: OidcUserManagerSettings(
-      //get any available port
-      redirectUri: Uri.parse(redirect),
-      postLogoutRedirectUri: Uri.parse(logout),
-      scope: ['openid', 'profile', 'email', 'groups'],
-      supportOfflineAuth: true,
-    ),
-  );
+  final store = OidcDefaultStore();
+  OidcUserManager? manager;
+  @override
+  void initState() {
+    super.initState();
+    manager = OidcUserManager.lazy(
+      discoveryDocumentUri: Uri.parse(wellKnownUrl),
+      clientCredentials: const OidcClientAuthentication.clientSecretBasic(
+        clientId: clientId,
+        clientSecret: clientSecret,
+      ),
+      store: store,
+      settings: OidcUserManagerSettings(
+        //get any available port
+        redirectUri: Uri.parse(redirect),
+        postLogoutRedirectUri: Uri.parse(logout),
+        scope: ['openid', 'profile', 'email', 'groups'],
+        supportOfflineAuth: true,
+      ),
+    );
+  }
 
   Future<String?> getAccessToken() async {
+    if (manager == null) return null;
     String? accessToken = await loginOIDC();
 
     if (accessToken != null && accessToken.isNotEmpty) {
@@ -102,7 +116,8 @@ class _MainWidgetState extends State<MainWidget> {
   }
 
   Future<String?> loginAuthorizationCodeFlow() async {
-    final OidcUser? user = await manager.loginAuthorizationCodeFlow();
+    if (manager == null) return null;
+    final OidcUser? user = await manager!.loginAuthorizationCodeFlow();
     if (user != null) {
       return user.token.idToken;
     } else {
@@ -112,29 +127,30 @@ class _MainWidgetState extends State<MainWidget> {
   }
 
   Future<String?> loginOIDC() async {
+    if (manager == null) return null;
     print("Trying oidc login on Android");
-    if (!manager.didInit) {
-      await manager.init();
+    if (!manager!.didInit) {
+      await manager!.init();
     }
 
     try {
       // Check if user is already logged in
-      if (manager.currentUser != null &&
-          manager.currentUser!.token.idToken != null) {
+      if (manager!.currentUser != null &&
+          manager!.currentUser!.token.idToken != null) {
         // Check if token is expired based on expiration time
         //
         DateTime expirationDate = JwtDecoder.getExpirationDate(
-          manager.currentUser!.token.idToken!,
+          manager!.currentUser!.token.idToken!,
         );
         if (expirationDate.compareTo(DateTime.now()) >= 0) {
           print("User already logged in with valid token");
-          return manager.currentUser!.token.idToken;
+          return manager!.currentUser!.token.idToken;
         }
 
         // Token is expired, try refreshing
         print("Token expired, attempting refresh");
         try {
-          final refreshedUser = await manager.refreshToken();
+          final refreshedUser = await manager!.refreshToken();
           if (refreshedUser != null) {
             print("Token refreshed successfully");
             return refreshedUser.token.idToken;
@@ -165,7 +181,7 @@ class _MainWidgetState extends State<MainWidget> {
         widget = OpenDoor(oidcManager: manager, getAccessToken: getAccessToken);
         break;
       case 1:
-        widget = Presence();
+        widget = Presence(oidcManager: manager, getAccessToken: getAccessToken);
         break;
       case 2:
         widget = Strichliste();
@@ -179,37 +195,130 @@ class _MainWidgetState extends State<MainWidget> {
       case 5:
         widget = FunWidget();
         break;
+      case 6:
+        widget = ICalCalendarWidget(
+          icalUrl: 'https://www.openlab-augsburg.de/calendar/ical',
+        );
       default:
         widget = OpenDoor(oidcManager: manager, getAccessToken: getAccessToken);
     }
 
     return Scaffold(
+      appBar: AppBar(title: Text(_getPageTitle())),
       body: SafeArea(child: widget),
-      bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.shifting,
-        currentIndex: _selectedIndex,
-        onTap: (value) {
-          setState(() {
-            _selectedIndex = value;
-          });
-        },
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Tür'),
-          BottomNavigationBarItem(icon: Icon(Icons.business), label: 'Präsenz'),
-          BottomNavigationBarItem(icon: Icon(Icons.euro), label: 'Strichliste'),
-          BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Projekte'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.school),
-            label: 'Einstellungen',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.celebration),
-            label: 'Spass',
-          ),
-        ],
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                image: DecorationImage(
+                  image: AssetImage('assets/icon/icon.png'),
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(0, 100, 0, 0),
+                child: Text(
+                  'OpenLab Augsburg e.V.',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Tür'),
+              selected: _selectedIndex == 0,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.business),
+              title: const Text('Präsenz'),
+              selected: _selectedIndex == 1,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.euro),
+              title: const Text('Strichliste'),
+              selected: _selectedIndex == 2,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 2;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.group),
+              title: const Text('Projekte'),
+              selected: _selectedIndex == 3,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 3;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.school),
+              title: const Text('Einstellungen'),
+              selected: _selectedIndex == 4,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 4;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.celebration),
+              title: const Text('Spass'),
+              selected: _selectedIndex == 5,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 5;
+                });
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  String _getPageTitle() {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Tür';
+      case 1:
+        return 'Präsenz';
+      case 2:
+        return 'Strichliste';
+      case 3:
+        return 'Projekte';
+      case 4:
+        return 'Einstellungen';
+      case 5:
+        return 'Spaß';
+      case 6:
+        return 'Kalender';
+      default:
+        return 'Tür';
+    }
   }
 }

@@ -1,30 +1,68 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:developer' as developer; // Import for logging
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:udp/udp.dart';
 import 'package:http/http.dart' as http;
+import 'package:network_tools/network_tools.dart'; // Retained for network scanning
+import 'package:dart_ping/dart_ping.dart'; // Retained for pinging
 
 class FunWidget extends StatefulWidget {
+  const FunWidget({super.key}); // Added key parameter
+
   @override
+  // Linter warning: "Invalid use of a private type in a public API."
+  // This is a common and accepted pattern in Flutter for StatefulWidget's createState method.
   _FunWidgetState createState() => _FunWidgetState();
 }
 
 class _FunWidgetState extends State<FunWidget> {
   String flipdotText = "";
-  final storage = new FlutterSecureStorage();
-  TextEditingController flipdotTextController = new TextEditingController();
-  bool _mounted = true;
+  final storage = FlutterSecureStorage();
+
+  TextEditingController flipdotTextController = TextEditingController();
+
+  // HTTP Request form controllers
+  TextEditingController urlController = TextEditingController();
+  TextEditingController usernameController = TextEditingController();
+  TextEditingController passwordController = TextEditingController();
+  TextEditingController requestBodyController = TextEditingController();
+
+  String selectedHttpMethod = 'GET';
+  bool useBasicAuth = false;
+  String httpResponse = '';
+  bool isLoading = false;
+
+  // Network Tools controllers
+  TextEditingController pingHostController = TextEditingController();
+  String pingResult = '';
+  bool isPinging = false;
+  List<ActiveHost> arpResults = [];
+  bool isScanning = false;
+
+  final List<String> httpMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+
+  // Use _mounted internal flag for async safety, similar to the `mounted` getter
+  // but explicitly managed for situations where `mounted` might be checked too late.
+  // The `mounted` getter is preferred where available.
+  // We'll rely on the framework's `mounted` getter for widget State lifecycle.
+  // For BuildContext across async gaps, the `if (!mounted) return;` is sufficient.
 
   @override
   void initState() {
     super.initState();
+    // No explicit _mounted = true needed here as `mounted` is true in initState
   }
 
   @override
   void dispose() {
-    _mounted = false;
     flipdotTextController.dispose();
+    urlController.dispose();
+    usernameController.dispose();
+    passwordController.dispose();
+    requestBodyController.dispose();
+    pingHostController.dispose();
     super.dispose();
   }
 
@@ -35,19 +73,21 @@ class _FunWidgetState extends State<FunWidget> {
         "blink".codeUnits,
         Endpoint.unicast(
           (await InternetAddress.lookup("NODE-F4C64E.lab")).first,
-          port: Port(5000),
+          port: const Port(5000),
         ),
       );
       sender.close();
-      print("Gesendet: 'blink' an NODE-F4C64E.lab:5000, $dataLength Bytes");
+      developer.log(
+        "Gesendet: 'blink' an NODE-F4C64E.lab:5000, $dataLength Bytes",
+      );
     } catch (e) {
-      print("Fehler beim Senden der UDP-Nachricht: $e");
+      developer.log("Fehler beim Senden der UDP-Nachricht: $e");
     }
   }
 
   void sendFlipdotText() async {
     if (flipdotText.isEmpty) {
-      print("Kein Text zum Senden");
+      developer.log("Kein Text zum Senden");
       return;
     }
 
@@ -58,33 +98,31 @@ class _FunWidgetState extends State<FunWidget> {
         body: {'text': flipdotText},
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
         final id = jsonResponse['id'];
         final text = jsonResponse['text'];
 
-        print(
+        developer.log(
           "Erfolg! Zur Warteschlange hinzugefügt mit ID: $id, Text: '$text'",
         );
 
-        if (_mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "Text zur Flipdot-Warteschlange hinzugefügt (ID: $id)",
-              ),
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              behavior: SnackBarBehavior.floating,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Text zur Flipdot-Warteschlange hinzugefügt (ID: $id)",
             ),
-          );
-        }
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
 
-        if (_mounted) {
-          setState(() {
-            flipdotText = "";
-            flipdotTextController.clear();
-          });
-        }
+        setState(() {
+          flipdotText = "";
+          flipdotTextController.clear();
+        });
       } else {
         String errorMessage;
         switch (response.statusCode) {
@@ -103,30 +141,27 @@ class _FunWidgetState extends State<FunWidget> {
                 "Fehler ${response.statusCode}: ${response.reasonPhrase}";
         }
 
-        print("Fehler beim Senden an Flipdot: $errorMessage");
+        developer.log("Fehler beim Senden an Flipdot: $errorMessage");
 
-        if (_mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Senden fehlgeschlagen: $errorMessage"),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print("Netzwerkfehler beim Senden an Flipdot: $e");
-
-      if (_mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Netzwerkfehler: Flipdot-Server nicht erreichbar"),
+            content: Text("Senden fehlgeschlagen: $errorMessage"),
             backgroundColor: Theme.of(context).colorScheme.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
+    } catch (e) {
+      developer.log("Netzwerkfehler beim Senden an Flipdot: $e");
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Netzwerkfehler: Flipdot-Server nicht erreichbar"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -136,44 +171,312 @@ class _FunWidgetState extends State<FunWidget> {
         Uri.parse('https://flipdot.openlab-augsburg.de/api/v2/queue'),
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
         final queue = jsonResponse['queue'];
         final length = jsonResponse['length'];
 
-        print("Aktuelle Warteschlangenlänge: $length");
+        developer.log("Aktuelle Warteschlangenlänge: $length");
         for (var item in queue) {
-          print("ID: ${item['id']}, Text: '${item['text']}'");
+          developer.log("ID: ${item['id']}, Text: '${item['text']}'");
         }
 
-        if (_mounted) {
-          _showQueueBottomSheet(queue, length);
-        }
+        _showQueueBottomSheet(queue, length);
       } else {
-        print("Fehler beim Abrufen der Warteschlange: ${response.statusCode}");
-        if (_mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "Fehler beim Abrufen der Warteschlange: ${response.statusCode}",
-              ),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print("Netzwerkfehler beim Abrufen der Warteschlange: $e");
-      if (_mounted) {
+        developer.log(
+          "Fehler beim Abrufen der Warteschlange: ${response.statusCode}",
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Netzwerkfehler: Server nicht erreichbar"),
+            content: Text(
+              "Fehler beim Abrufen der Warteschlange: ${response.statusCode}",
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
+    } catch (e) {
+      developer.log("Netzwerkfehler beim Abrufen der Warteschlange: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Netzwerkfehler: Server nicht erreichbar"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> sendHttpRequest() async {
+    if (urlController.text.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Bitte geben Sie eine URL ein"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      httpResponse = '';
+    });
+
+    try {
+      Uri uri = Uri.parse(urlController.text);
+      Map<String, String> headers = {'Content-Type': 'application/json'};
+
+      // Add basic auth if enabled
+      if (useBasicAuth && usernameController.text.isNotEmpty) {
+        String credentials = base64Encode(
+          utf8.encode('${usernameController.text}:${passwordController.text}'),
+        );
+        headers['Authorization'] = 'Basic $credentials';
+      }
+
+      http.Response response;
+
+      switch (selectedHttpMethod) {
+        case 'GET':
+          response = await http.get(uri, headers: headers);
+          break;
+        case 'POST':
+          response = await http.post(
+            uri,
+            headers: headers,
+            body:
+                requestBodyController.text.isNotEmpty
+                    ? requestBodyController.text
+                    : null,
+          );
+          break;
+        case 'PUT':
+          response = await http.put(
+            uri,
+            headers: headers,
+            body:
+                requestBodyController.text.isNotEmpty
+                    ? requestBodyController.text
+                    : null,
+          );
+          break;
+        case 'DELETE':
+          response = await http.delete(uri, headers: headers);
+          break;
+        case 'PATCH':
+          response = await http.patch(
+            uri,
+            headers: headers,
+            body:
+                requestBodyController.text.isNotEmpty
+                    ? requestBodyController.text
+                    : null,
+          );
+          break;
+        default:
+          response = await http.get(uri, headers: headers);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        httpResponse =
+            'Status: ${response.statusCode}\n\n'
+            'Headers:\n${response.headers.entries.map((e) => '${e.key}: ${e.value}').join('\n')}\n\n'
+            'Body:\n${response.body}';
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("HTTP-Anfrage erfolgreich (${response.statusCode})"),
+          backgroundColor:
+              response.statusCode < 400
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        httpResponse = 'Fehler: $e';
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("HTTP-Anfrage fehlgeschlagen: $e"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> pingHost() async {
+    if (pingHostController.text.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Bitte geben Sie eine Host-Adresse ein"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isPinging = true;
+      pingResult = '';
+    });
+
+    try {
+      String host = pingHostController.text.trim();
+
+      // Perform ping with 4 packets using dart_ping
+      final ping = Ping(host, count: 4);
+
+      String result = 'Ping zu $host:\n\n';
+
+      await for (final response in ping.stream) {
+        if (!mounted) return;
+
+        if (response.response != null) {
+          // Access seq from PingResponse object
+          result +=
+              'Antwort von ${response.response!.ip}: '
+              'Zeit=${response.response!.time?.inMilliseconds ?? 0}ms '
+              'TTL=${response.response!.ttl ?? 0} '
+              'Seq=${response.response!.seq}\n'; // Corrected: Access seq via response.response
+        } else if (response.error != null) {
+          // Using toString() for robustness, as 'type' or 'name' might vary by dart_ping version.
+          result += 'Fehler für Paket: ${response.error.toString()}\n';
+        } else {
+          // For timeout, PingData itself doesn't have seq, so just report timeout
+          result +=
+              'Timeout für $host\n'; // Corrected: No ip on PingData for timeouts
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        pingResult = result;
+        isPinging = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Ping abgeschlossen"),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        pingResult = 'Ping-Fehler: $e';
+        isPinging = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Ping fehlgeschlagen: $e"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> scanLocalNetwork() async {
+    setState(() {
+      isScanning = true;
+      arpResults.clear();
+    });
+
+    try {
+      final interface = await NetInterface.localInterface();
+      if (interface == null) {
+        if (!mounted) return;
+        setState(() {
+          isScanning = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              "Keine Netzwerk-Schnittstelle gefunden oder fehlende Berechtigungen.",
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Start scanning and update results as they come in
+      final stream = HostScannerService.instance.getAllPingableDevices(
+        interface.networkId,
+        timeoutInSeconds: 5, // Optional: adjust timeout
+      );
+
+      await for (final host in stream) {
+        if (!mounted) return;
+        setState(() {
+          arpResults.add(host);
+        });
+      }
+
+      // Give a small delay to ensure all stream events are processed
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) return;
+
+      setState(() {
+        isScanning = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Netzwerk-Scan abgeschlossen (${arpResults.length} Hosts gefunden)",
+          ),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isScanning = false;
+      });
+
+      String errorMessage = "Netzwerk-Scan fehlgeschlagen: $e. ";
+      if (e.toString().contains("LateInitializationError") ||
+          e.toString().contains("PlatformException")) {
+        errorMessage +=
+            "Dies kann auf fehlende Berechtigungen (z.B. Standort) oder ein Problem mit der Netzwerk-Tools-Bibliothek hindeuten. Bitte stellen Sie sicher, dass alle erforderlichen Berechtigungen erteilt wurden und führen Sie 'flutter clean' sowie 'flutter pub get' aus.";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -187,14 +490,16 @@ class _FunWidgetState extends State<FunWidget> {
             height: MediaQuery.of(context).size.height * 0.7,
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
             ),
             child: Column(
               children: [
                 Container(
                   width: 40,
                   height: 4,
-                  margin: EdgeInsets.symmetric(vertical: 12),
+                  margin: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
@@ -203,7 +508,10 @@ class _FunWidgetState extends State<FunWidget> {
                   ),
                 ),
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       Icon(
@@ -211,7 +519,7 @@ class _FunWidgetState extends State<FunWidget> {
                         color: Theme.of(context).colorScheme.primary,
                         size: 28,
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,7 +545,7 @@ class _FunWidgetState extends State<FunWidget> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(Icons.close),
+                        icon: const Icon(Icons.close),
                         style: IconButton.styleFrom(
                           backgroundColor:
                               Theme.of(
@@ -248,7 +556,7 @@ class _FunWidgetState extends State<FunWidget> {
                     ],
                   ),
                 ),
-                Divider(height: 1),
+                const Divider(height: 1),
                 Expanded(
                   child:
                       queue.isEmpty
@@ -264,7 +572,7 @@ class _FunWidgetState extends State<FunWidget> {
                                       .onSurfaceVariant
                                       .withOpacity(0.6),
                                 ),
-                                SizedBox(height: 16),
+                                const SizedBox(height: 16),
                                 Text(
                                   "Warteschlange ist leer",
                                   style: Theme.of(
@@ -291,13 +599,13 @@ class _FunWidgetState extends State<FunWidget> {
                             ),
                           )
                           : ListView.separated(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
                             ),
                             itemCount: queue.length,
                             separatorBuilder:
-                                (context, index) => SizedBox(height: 8),
+                                (context, index) => const SizedBox(height: 8),
                             itemBuilder: (context, index) {
                               final item = queue[index];
                               return Card(
@@ -315,13 +623,13 @@ class _FunWidgetState extends State<FunWidget> {
                                   ),
                                 ),
                                 child: Padding(
-                                  padding: EdgeInsets.all(16),
+                                  padding: const EdgeInsets.all(16),
                                   child: Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Container(
-                                        padding: EdgeInsets.symmetric(
+                                        padding: const EdgeInsets.symmetric(
                                           horizontal: 8,
                                           vertical: 4,
                                         ),
@@ -347,7 +655,7 @@ class _FunWidgetState extends State<FunWidget> {
                                           ),
                                         ),
                                       ),
-                                      SizedBox(width: 12),
+                                      const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:
@@ -360,7 +668,7 @@ class _FunWidgetState extends State<FunWidget> {
                                                     context,
                                                   ).textTheme.bodyLarge,
                                             ),
-                                            SizedBox(height: 4),
+                                            const SizedBox(height: 4),
                                             Text(
                                               "Position ${index + 1} von $length",
                                               style: Theme.of(
@@ -390,54 +698,453 @@ class _FunWidgetState extends State<FunWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      child: Column(
-        children: [
-          Text("Flipdot", style: Theme.of(context).textTheme.headlineMedium),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
-            child: TextFormField(
-              controller: flipdotTextController,
-              maxLines: 3,
-              maxLength: 512,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                label: Text("Flipdot Text"),
-                helperText: "Maximal 512 Zeichen",
+    return SingleChildScrollView(
+      child: Form(
+        child: Column(
+          children: [
+            ExpansionTile(
+              title: Text(
+                "Flipdot",
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              onChanged: (value) {
-                if (_mounted) {
-                  setState(() {
-                    flipdotText = value;
-                  });
-                }
-              },
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
+                  child: TextFormField(
+                    controller: flipdotTextController,
+                    maxLines: 3,
+                    maxLength: 512,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      label: Text("Flipdot Text"),
+                      helperText: "Maximal 512 Zeichen",
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        // Use setState directly as we are within build context
+                        flipdotText = value;
+                      });
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: FilledButton(
+                    onPressed:
+                        flipdotText.isNotEmpty ? () => sendFlipdotText() : null,
+                    child: const Text("An Flipdot-Warteschlange senden"),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: OutlinedButton.icon(
+                    onPressed: () => getQueue(),
+                    icon: const Icon(Icons.queue_outlined),
+                    label: const Text("Flipdot-Warteschlange anzeigen"),
+                  ),
+                ),
+              ],
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: FilledButton(
-              onPressed:
-                  flipdotText.isNotEmpty ? () => sendFlipdotText() : null,
-              child: Text("An Flipdot-Warteschlange senden"),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: FilledButton.tonal(
+                onPressed: () => dummrumleuchte(),
+                child: const Text("Dummrumleuchte aktivieren"),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: OutlinedButton.icon(
-              onPressed: () => getQueue(),
-              icon: Icon(Icons.queue_outlined),
-              label: Text("Flipdot-Warteschlange anzeigen"),
+            ExpansionTile(
+              title: Text(
+                "HTTP Anfragen",
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: selectedHttpMethod,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          label: Text("HTTP Methode"),
+                        ),
+                        items:
+                            httpMethods.map((String method) {
+                              return DropdownMenuItem<String>(
+                                value: method,
+                                child: Text(method),
+                              );
+                            }).toList(),
+                        onChanged: (String? value) {
+                          if (value != null) {
+                            setState(() {
+                              selectedHttpMethod = value;
+                            });
+                          }
+                        },
+                      ),
+                      SizedBox(height: 8),
+                      TextFormField(
+                        controller: urlController,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          label: Text("URL"),
+                          hintText: "https://example.com/api",
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                  child: CheckboxListTile(
+                    title: Text("Basic Authentication verwenden"),
+                    value: useBasicAuth,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        useBasicAuth = value ?? false;
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                ),
+                if (useBasicAuth) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: usernameController,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(),
+                              label: Text("Benutzername"),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: passwordController,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(),
+                              label: Text("Passwort"),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (selectedHttpMethod == 'POST' ||
+                    selectedHttpMethod == 'PUT' ||
+                    selectedHttpMethod == 'PATCH') ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    child: TextFormField(
+                      controller: requestBodyController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(),
+                        label: Text("Request Body (JSON)"),
+                        hintText: '{"key": "value"}',
+                      ),
+                    ),
+                  ),
+                ],
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: FilledButton.icon(
+                    onPressed:
+                        isLoading || urlController.text.isEmpty
+                            ? null
+                            : () => sendHttpRequest(),
+                    icon:
+                        isLoading
+                            ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : Icon(Icons.send),
+                    label: Text(
+                      isLoading ? "Wird gesendet..." : "Anfrage senden",
+                    ),
+                  ),
+                ),
+                if (httpResponse.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.http, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Antwort",
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
+                                Spacer(),
+                                IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      httpResponse = '';
+                                    });
+                                  },
+                                  icon: Icon(Icons.clear, size: 20),
+                                ),
+                              ],
+                            ),
+                            Divider(),
+                            Container(
+                              width: double.infinity,
+                              height: 200,
+                              child: SingleChildScrollView(
+                                child: SelectableText(
+                                  httpResponse,
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: FilledButton.tonal(
-              onPressed: () => dummrumleuchte(),
-              child: Text("Dummrumleuchte aktivieren"),
+            ExpansionTile(
+              title: Text(
+                "Netzwerk-Tools",
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              children: [
+                // Ping Section
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Ping",
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: pingHostController,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          label: Text("Host/IP-Adresse"),
+                          hintText: "google.com oder 192.168.1.1",
+                        ),
+                        // Added onChanged to trigger rebuild and enable button
+                        onChanged: (value) {
+                          setState(() {
+                            // No specific variable update needed here, just rebuild to enable/disable button
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: FilledButton.icon(
+                    onPressed:
+                        isPinging || pingHostController.text.isEmpty
+                            ? null
+                            : () => pingHost(),
+                    icon:
+                        isPinging
+                            ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.network_ping),
+                    label: Text(isPinging ? "Pinge..." : "Ping starten"),
+                  ),
+                ),
+                if (pingResult.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.network_ping, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "Ping-Ergebnis",
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      pingResult = '';
+                                    });
+                                  },
+                                  icon: const Icon(Icons.clear, size: 20),
+                                ),
+                              ],
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              // Removed `constraints` here
+                              width: double.infinity,
+                              height: 150,
+                              child: SingleChildScrollView(
+                                child: SelectableText(
+                                  pingResult,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Network Scan Section
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Lokales Netzwerk scannen",
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Scannt das lokale Netzwerk nach aktiven Geräten",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: FilledButton.icon(
+                    onPressed: isScanning ? null : () => scanLocalNetwork(),
+                    icon:
+                        isScanning
+                            ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.wifi_find),
+                    label: Text(
+                      isScanning ? "Scanne Netzwerk..." : "Netzwerk scannen",
+                    ),
+                  ),
+                ),
+                if (arpResults.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.devices, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "Gefundene Geräte (${arpResults.length})",
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      arpResults.clear();
+                                    });
+                                  },
+                                  icon: const Icon(Icons.clear, size: 20),
+                                ),
+                              ],
+                            ),
+                            const Divider(),
+                            // Corrected: Use ConstrainedBox to apply constraints to SizedBox
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxHeight: 200,
+                              ), // Added const
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: arpResults.length,
+                                  itemBuilder: (context, index) {
+                                    final host = arpResults[index];
+                                    return ListTile(
+                                      leading: const Icon(
+                                        Icons.laptop,
+                                      ), // Or a more generic device icon
+                                      title: Text(host.address),
+                                      subtitle: FutureBuilder<String?>(
+                                        future:
+                                            host.getMacAddress(), // Call the async function
+                                        builder: (context, snapshot) {
+                                          if (snapshot.connectionState ==
+                                              ConnectionState.waiting) {
+                                            return const Text('Lade MAC...');
+                                          } else if (snapshot.hasError) {
+                                            return Text(
+                                              'Fehler: ${snapshot.error}',
+                                            );
+                                          } else {
+                                            return Text(snapshot.data ?? 'N/A');
+                                          }
+                                        },
+                                      ),
+                                      dense: true,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -52,6 +52,14 @@ dependencies:
   oidc: ^0.10.0
   udp: ^5.0.3
   oidc_default_store: ^0.2.0+15
+  network_tools: ^5.0.6
+  network_tools_flutter: ^2.0.7
+  path_provider: 2.1.5
+  table_calendar: ^3.2.0
+  icalendar_parser: ^2.1.0
+  device_calendar: ^4.3.3
+  dart_ping: ^9.0.1
+  ping_discover_network_forked: ^0.0.1
 
 dev_dependencies:
   flutter_test:

@@ -25,12 +25,11 @@ const redirect = 'de.openlab.openlabflutter:/oauth2redirect';
 const String logout = 'de.openlab.openlabflutter:/logout';
 const wellKnownUrl =
     "https://auth.openlab-augsburg.de/application/o/airlock/.well-known/openid-configuration";
-final store = OidcDefaultStore();
 
 enum BuzzType { inner, outer }
 
 class OpenDoor extends StatefulWidget {
-  OidcUserManager oidcManager;
+  OidcUserManager? oidcManager;
   Function getAccessToken;
   OpenDoor({required this.oidcManager, required this.getAccessToken});
 
@@ -65,7 +64,11 @@ class _OpenDoorState extends State<OpenDoor> {
   @override
   void initState() {
     super.initState();
-    this.widget.oidcManager.init();
+    if (widget.oidcManager != null) {
+      widget.oidcManager!.init();
+      this.widget.oidcManager!.userChanges().listen((user) {});
+    }
+    ;
     hce.setMethodCallHandler((MethodCall call) async {
       print(call.method);
       switch (call.method) {
@@ -74,7 +77,6 @@ class _OpenDoorState extends State<OpenDoor> {
           print("Finished getting access Token");
       }
     });
-    this.widget.oidcManager.userChanges().listen((user) {});
   }
 
   Future<void> readNFC() async {
@@ -92,11 +94,12 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<void> emulate() async {
+    if (widget.oidcManager == null) return;
     var result = await hce.invokeMethod<bool>("startHCE");
-    if (result == true && this.widget.oidcManager.currentUser != null) {
+    if (result == true && this.widget.oidcManager!.currentUser != null) {
       print("Yeah called the method");
       hce.invokeMethod<bool>("accessToken", {
-        "accessToken": this.widget.oidcManager.currentUser!.token.idToken,
+        "accessToken": this.widget.oidcManager!.currentUser!.token.idToken,
       });
     } else {
       print("Nonononono");

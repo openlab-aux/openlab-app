@@ -4,14 +4,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:oidc/oidc.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:duration_picker/duration_picker.dart';
 import 'package:direct_select/direct_select.dart';
+import 'package:oidc_core/oidc_core.dart';
 
 class PresenceResponse {
   final Map<String, DateTime> users;
 
-  const PresenceResponse({required this.users});
+  PresenceResponse({required this.users});
 
   factory PresenceResponse.fromJson(Map<String, dynamic> json) {
     Map<String, String> users = Map.from(json['users']);
@@ -54,6 +56,9 @@ class ComingResponse {
 }
 
 class Presence extends StatefulWidget {
+  OidcUserManager? oidcManager;
+  Function getAccessToken;
+  Presence({required this.oidcManager, required this.getAccessToken});
   @override
   _PresenceState createState() => _PresenceState();
 }
@@ -62,14 +67,13 @@ class _PresenceState extends State<Presence> {
   final String apiUrl = "https://openlapp.lab.weltraumpflege.org";
   PresenceResponse? presence;
   ComingResponse? coming;
-  String nickname = "ReplaceMe";
+  String? nickname;
   bool loggedIn = false;
   bool planingToCome = false;
   Duration whenICome = Duration(minutes: 30);
   ComingType comingType = ComingType.Gammeln;
   bool _mounted = true;
 
-  final storage = new FlutterSecureStorage();
   RefreshController _refreshController = RefreshController(
     initialRefresh: true,
   );
@@ -95,9 +99,16 @@ class _PresenceState extends State<Presence> {
 
   void loadPresence() async {
     try {
+      if (widget.oidcManager != null &&
+          widget.oidcManager!.currentUser != null &&
+          widget.oidcManager!.currentUser!.userInfo.keys.contains(
+            "preferred_username",
+          )) {
+        nickname =
+            widget.oidcManager!.currentUser!.userInfo["preferred_username"];
+      }
       http.Response response = await http.get(Uri.parse(apiUrl + "/presence"));
       if (response.statusCode == 200) {
-        nickname = await storage.read(key: "nickname") ?? "ReplaceMe";
         if (_mounted) {
           setState(() {
             Map<String, dynamic> body =
@@ -125,11 +136,11 @@ class _PresenceState extends State<Presence> {
     }
   }
 
+  void loadNickName() async {}
   void loadComing() async {
     try {
       http.Response response = await http.get(Uri.parse(apiUrl + "/coming"));
       if (response.statusCode == 200) {
-        nickname = await storage.read(key: "nickname") ?? "ReplaceMe";
         if (_mounted) {
           setState(() {
             Map<String, dynamic> body =
@@ -180,6 +191,9 @@ class _PresenceState extends State<Presence> {
   }
 
   void logout() async {
+    if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
+      widget.getAccessToken();
+    }
     try {
       http.Response response = await http.delete(
         Uri.parse(apiUrl + "/presence"),
@@ -209,6 +223,9 @@ class _PresenceState extends State<Presence> {
   }
 
   void login() async {
+    if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
+      widget.getAccessToken();
+    }
     try {
       http.Response response = await http.put(
         Uri.parse(apiUrl + "/presence"),
@@ -419,6 +436,9 @@ class _PresenceState extends State<Presence> {
   }
 
   void i_am_coming() async {
+    if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
+      widget.getAccessToken();
+    }
     await comingBottomSheet();
 
     try {
@@ -456,6 +476,9 @@ class _PresenceState extends State<Presence> {
   }
 
   void not_coming() async {
+    if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
+      widget.getAccessToken();
+    }
     try {
       http.Response response = await http.delete(
         Uri.parse(apiUrl + "/coming"),
