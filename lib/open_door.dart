@@ -19,8 +19,6 @@ import 'package:http/io_client.dart';
 
 const hce = MethodChannel("hce");
 const clientId = 'RX1Tts6xiTxS0jMcYvTTBTKejHQpCKwWyoQwF8JC';
-const clientSecret =
-    '7buahQTaCr1cPMMgnMylkdcXlycfJXbmCnodLYQKN5M9N05t5MGhFXgR4Gygcxw5p1bUVna08OeMoSAD747fMDsH2KocIHWGQxl7nF9VnUOa952hUyqzqjnvbfXQlUIr';
 const redirect = 'de.openlab.openlabflutter:/oauth2redirect';
 const String logout = 'de.openlab.openlabflutter:/logout';
 const wellKnownUrl =

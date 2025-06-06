@@ -82,9 +82,9 @@ class _MainWidgetState extends State<MainWidget> {
     super.initState();
     manager = OidcUserManager.lazy(
       discoveryDocumentUri: Uri.parse(wellKnownUrl),
-      clientCredentials: const OidcClientAuthentication.clientSecretBasic(
-        clientId: clientId,
-        clientSecret: clientSecret,
+      clientCredentials: const OidcClientAuthentication.none(
+        // Use OidcClientAuthentication.none
+        clientId: clientId, // Pass your clientId here
       ),
       store: store,
       settings: OidcUserManagerSettings(
