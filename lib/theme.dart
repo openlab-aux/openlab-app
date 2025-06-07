@@ -35,8 +35,6 @@ class OpenLabTheme {
       tertiary: secondaryBlue,
       surface: white,
       onSurface: darkGray,
-      background: lightGray,
-      onBackground: darkGray,
       error: error,
       onError: white,
       outline: mediumGray.withOpacity(0.3),
@@ -60,8 +58,7 @@ class OpenLabTheme {
     ),
 
     // Cards - modern, subtle elevation
-    cardTheme: CardTheme(
-      // Changed from CardTheme to CardThemeData
+    cardTheme: CardThemeData(
       color: white,
       elevation: 2,
       shadowColor: mediumGray.withOpacity(0.1),
@@ -289,8 +286,6 @@ class OpenLabTheme {
       tertiary: Color(0xFF60A5FA),
       surface: Color(0xFF1E293B),
       onSurface: Color(0xFFF1F5F9),
-      background: Color(0xFF0F172A),
-      onBackground: Color(0xFFF1F5F9),
       error: Color(0xFFF87171),
       onError: white,
       outline: Color(0xFF475569),
@@ -312,8 +307,7 @@ class OpenLabTheme {
       iconTheme: IconThemeData(color: Color(0xFFF1F5F9)),
     ),
 
-    cardTheme: CardTheme(
-      // Changed from CardTheme to CardThemeData
+    cardTheme: CardThemeData(
       color: Color(0xFF1E293B),
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.3),

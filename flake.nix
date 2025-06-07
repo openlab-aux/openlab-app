@@ -1,7 +1,7 @@
 {
-  description = "Flutter 3.13.x";
+  description = "Flutter 3.27+";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
   outputs =
@@ -27,17 +27,21 @@
           buildToolsVersions = [
             buildToolsVersion
             "34.0.0"
+            "33.0.2"
             "30.0.3"
           ];
           platformVersions = [
             "35"
             "34"
             "33"
+            "32"
           ];
           abiVersions = [
             "armeabi-v7a"
             "arm64-v8a"
           ];
+          includeNDK = true;
+          ndkVersions = [ "25.1.8937393" ];
         };
         androidSdk = androidComposition.androidsdk;
       in
@@ -48,10 +52,9 @@
             ANDROID_SDK_ROOT = "${androidSdk}/libexec/android-sdk";
             ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
             GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${androidSdk}/libexec/android-sdk/build-tools/${buildToolsVersion}/aapt2";
-
             buildInputs = [
               flutter
-              androidSdk # The customized SDK that we've made above
+              androidSdk
               jdk17
               androidComposition.platform-tools
             ];
