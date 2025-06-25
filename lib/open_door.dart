@@ -48,7 +48,7 @@ class _OpenDoorState extends State<OpenDoor> {
   }
 
   Future<String?> getAccessToken() async {
-    return await widget.getAccessToken();
+    return await widget.getAccessToken(widget.oidcManager);
   }
 
   @override

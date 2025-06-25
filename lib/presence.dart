@@ -58,16 +58,23 @@ class ComingResponse {
 class Presence extends StatefulWidget {
   OidcUserManager? oidcManager;
   Function getAccessToken;
-  Presence({required this.oidcManager, required this.getAccessToken});
+  Function getNickname;
+  Function checkLoggedIn;
+  Presence({
+    required this.oidcManager,
+    required this.getAccessToken,
+    required this.getNickname,
+    required this.checkLoggedIn,
+  });
   @override
   _PresenceState createState() => _PresenceState();
 }
 
 class _PresenceState extends State<Presence> {
   final String apiUrl = "https://openlapp.lab.weltraumpflege.org";
+  final String presenceApiUrl = "http://10.32.128.191:5000";
   PresenceResponse? presence;
   ComingResponse? coming;
-  String? nickname;
   bool loggedIn = false;
   bool planingToCome = false;
   Duration whenICome = Duration(minutes: 30);
@@ -99,14 +106,6 @@ class _PresenceState extends State<Presence> {
 
   void loadPresence() async {
     try {
-      if (widget.oidcManager != null &&
-          widget.oidcManager!.currentUser != null &&
-          widget.oidcManager!.currentUser!.userInfo.keys.contains(
-            "preferred_username",
-          )) {
-        nickname =
-            widget.oidcManager!.currentUser!.userInfo["preferred_username"];
-      }
       http.Response response = await http.get(Uri.parse(apiUrl + "/presence"));
       if (response.statusCode == 200) {
         if (_mounted) {
@@ -116,7 +115,7 @@ class _PresenceState extends State<Presence> {
             presence = PresenceResponse.fromJson(body);
             loggedIn = false;
             for (String user in presence!.users.keys) {
-              if (user == nickname) {
+              if (user == widget.getAccessToken) {
                 loggedIn = true;
               }
             }
@@ -136,7 +135,6 @@ class _PresenceState extends State<Presence> {
     }
   }
 
-  void loadNickName() async {}
   void loadComing() async {
     try {
       http.Response response = await http.get(Uri.parse(apiUrl + "/coming"));
@@ -148,7 +146,7 @@ class _PresenceState extends State<Presence> {
             coming = ComingResponse.fromJson(body);
             planingToCome = false;
             for (String user in coming!.users.keys) {
-              if (user == nickname) {
+              if (user == widget.getNickname()) {
                 planingToCome = true;
               }
             }
@@ -192,15 +190,17 @@ class _PresenceState extends State<Presence> {
 
   void logout() async {
     if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
-      widget.getAccessToken();
+      if (!widget.checkLoggedIn()) return;
     }
     try {
       http.Response response = await http.delete(
         Uri.parse(apiUrl + "/presence"),
-        body: jsonEncode({"nickname": nickname}),
+        body: jsonEncode({"nickname": await widget.getNickname()}),
         headers: {
           "Content-Type": "application/json",
           'Access-Control-Allow-Origin': '*',
+          'Authorization':
+              'Bearer ' + (await widget.getAccessToken(widget.oidcManager)),
         },
       );
       if (response.statusCode == 200) {
@@ -223,13 +223,15 @@ class _PresenceState extends State<Presence> {
   }
 
   void login() async {
-    if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
-      widget.getAccessToken();
+    if (!widget.checkLoggedIn()) {
+      _showErrorSnackBar("Failed to login");
+      return;
     }
+    ;
     try {
       http.Response response = await http.put(
         Uri.parse(apiUrl + "/presence"),
-        body: jsonEncode({"nickname": nickname}),
+        body: jsonEncode({"nickname": await widget.getNickname()}),
         headers: {
           "Content-Type": "application/json",
           'Access-Control-Allow-Origin': '*',
@@ -244,6 +246,40 @@ class _PresenceState extends State<Presence> {
         print(response);
         if (_mounted) {
           _showErrorSnackBar("Failed to login");
+        }
+      }
+    } catch (e) {
+      print(e);
+      if (_mounted) {
+        _showErrorSnackBar("Network error during login");
+      }
+    }
+  }
+
+  void loginNew() async {
+    String? accessToken = await widget.getAccessToken(widget.oidcManager);
+    if (accessToken == null) {
+      _showErrorSnackBar("Failed to login: ");
+    }
+    try {
+      http.Response response = await http.put(
+        Uri.parse("$presenceApiUrl/presence"),
+        headers: {
+          "Content-Type": "application/json",
+          'Access-Control-Allow-Origin': '*',
+          'Authorization':
+              "Bearer ${await widget.getAccessToken(widget.oidcManager)}",
+        },
+      );
+      if (response.statusCode == 200) {
+        loadPresence();
+        if (_mounted) {
+          _showSuccessSnackBar("Successfully logged in");
+        }
+      } else {
+        print(response.body);
+        if (_mounted) {
+          _showErrorSnackBar("Failed to login: " + response.body);
         }
       }
     } catch (e) {
@@ -311,10 +347,9 @@ class _PresenceState extends State<Presence> {
                             onPressed: () => Navigator.of(context).pop(),
                             icon: Icon(Icons.close),
                             style: IconButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainerHighest,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                             ),
                           ),
                         ],
@@ -329,22 +364,19 @@ class _PresenceState extends State<Presence> {
                           children: [
                             Text(
                               "Dreh öfters um Stunden zu selektieren.",
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.copyWith(
-                                color:
-                                    Theme.of(
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
                                       context,
                                     ).colorScheme.onSurfaceVariant,
-                              ),
+                                  ),
                             ),
                             SizedBox(height: 24),
                             Card(
                               elevation: 0,
-                              color:
-                                  Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainerLow,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerLow,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
@@ -374,10 +406,9 @@ class _PresenceState extends State<Presence> {
                             SizedBox(height: 16),
                             Card(
                               elevation: 0,
-                              color:
-                                  Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainerLow,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerLow,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
@@ -394,15 +425,14 @@ class _PresenceState extends State<Presence> {
                                     border: InputBorder.none,
                                     contentPadding: EdgeInsets.zero,
                                   ),
-                                  items:
-                                      ComingType.values
-                                          .map(
-                                            (e) => DropdownMenuItem(
-                                              value: e,
-                                              child: Text(e.name),
-                                            ),
-                                          )
-                                          .toList(),
+                                  items: ComingType.values
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e.name),
+                                        ),
+                                      )
+                                      .toList(),
                                   onChanged: (value) {
                                     setStateSetter(() {
                                       if (value != null) {
@@ -446,7 +476,7 @@ class _PresenceState extends State<Presence> {
       http.Response response = await http.put(
         Uri.parse(apiUrl + "/coming"),
         body: jsonEncode({
-          "nickname": nickname,
+          "nickname": await widget.getNickname(),
           "coming_type": comingType.name,
           "when":
               "${whenTime.day.toString().padLeft(2, "0")}.${whenTime.month.toString().padLeft(2, "0")}.${whenTime.year.toString().padLeft(2, "0")} ${whenTime.hour.toString().padLeft(2, "0")}:${whenTime.minute.toString().padLeft(2, "0")}:${whenTime.second.toString().padLeft(2, "0")}",
@@ -477,12 +507,12 @@ class _PresenceState extends State<Presence> {
 
   void not_coming() async {
     if (widget.oidcManager != null && widget.oidcManager!.currentUser == null) {
-      widget.getAccessToken();
+      widget.checkLoggedIn(widget.oidcManager);
     }
     try {
       http.Response response = await http.delete(
         Uri.parse(apiUrl + "/coming"),
-        body: jsonEncode({"nickname": nickname}),
+        body: jsonEncode({"nickname": await widget.getNickname()}),
         headers: {
           "Content-Type": "application/json",
           'Access-Control-Allow-Origin': '*',
@@ -524,39 +554,37 @@ class _PresenceState extends State<Presence> {
       ),
       child: ListTile(
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading:
-            icon != null
-                ? Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    size: 20,
-                  ),
-                )
-                : null,
+        leading: icon != null
+            ? Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  size: 20,
+                ),
+              )
+            : null,
         title: Text(name, style: Theme.of(context).textTheme.bodyLarge),
-        subtitle:
-            type != null
-                ? Container(
-                  margin: EdgeInsets.only(top: 4),
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(12),
+        subtitle: type != null
+            ? Container(
+                margin: EdgeInsets.only(top: 4),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  type,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
                   ),
-                  child: Text(
-                    type,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSecondaryContainer,
-                    ),
-                  ),
-                )
-                : null,
+                ),
+              )
+            : null,
         trailing: Container(
           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -585,7 +613,7 @@ class _PresenceState extends State<Presence> {
             if (loggedIn) {
               logout();
             } else {
-              login();
+              loginNew();
             }
           },
           icon: Icon(loggedIn ? Icons.logout : Icons.login),
@@ -708,12 +736,12 @@ class _PresenceState extends State<Presence> {
                       child: Center(
                         child: Text(
                           "Niemand im Lab",
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ),
                     ),
@@ -755,12 +783,12 @@ class _PresenceState extends State<Presence> {
                       child: Center(
                         child: Text(
                           "Niemand plant zu kommen",
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ),
                     ),
