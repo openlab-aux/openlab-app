@@ -18,11 +18,6 @@ import 'package:oidc_core/oidc_core.dart';
 import 'package:http/io_client.dart';
 
 const hce = MethodChannel("hce");
-const clientId = 'RX1Tts6xiTxS0jMcYvTTBTKejHQpCKwWyoQwF8JC';
-const redirect = 'de.openlab.openlabflutter:/oauth2redirect';
-const String logout = 'de.openlab.openlabflutter:/logout';
-const wellKnownUrl =
-    "https://auth.openlab-augsburg.de/application/o/airlock/.well-known/openid-configuration";
 
 enum BuzzType { inner, outer }
 
@@ -44,13 +39,10 @@ class _OpenDoorState extends State<OpenDoor> {
   http.Client createHttpClient() {
     final httpClient = HttpClient();
     // Disable certificate verification
-    httpClient.badCertificateCallback = (
-      X509Certificate cert,
-      String host,
-      int port,
-    ) {
-      return true; // Accept all certificates
-    };
+    httpClient.badCertificateCallback =
+        (X509Certificate cert, String host, int port) {
+          return true; // Accept all certificates
+        };
 
     return IOClient(httpClient);
   }
@@ -73,8 +65,80 @@ class _OpenDoorState extends State<OpenDoor> {
         case "getAccessToken":
           await getAccessToken();
           print("Finished getting access Token");
+          break;
+        case "widgetBuzz":
+          // Handle widget buzz calls
+          final Map<String, dynamic> args = Map<String, dynamic>.from(
+            call.arguments,
+          );
+          final String? buzzType = args['type'];
+          if (buzzType != null) {
+            print("Widget buzz called with type: $buzzType");
+            await handleWidgetBuzz(buzzType);
+          }
+          break;
       }
     });
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> handleWidgetBuzz(String buzzType) async {
+    try {
+      if (widget.oidcManager != null) {
+        widget.oidcManager!.init();
+        this.widget.oidcManager!.userChanges().listen((user) {});
+      }
+      await Future.delayed(Duration(milliseconds: 1000));
+      // Check if user is logged in by trying to get access token
+      String? accessToken = await getAccessToken();
+
+      if (accessToken == null || accessToken.isEmpty) {
+        // Try to automatically login
+        print("User not logged in, attempting auto-login...");
+
+        try {
+          accessToken = await getAccessToken();
+
+          if (accessToken == null || accessToken.isEmpty) {
+            print("Auto-login failed");
+            _showErrorSnackBar("Login fehlgeschlagen");
+            return;
+          }
+        } catch (e) {
+          print("Auto-login exception: $e");
+          _showErrorSnackBar("Login-Fehler: $e");
+          return;
+        }
+      }
+
+      // User is logged in, proceed with buzzing
+      if (buzzType == "inner") {
+        await buzz(BuzzType.inner);
+      } else if (buzzType == "outer") {
+        await buzz(BuzzType.outer);
+      }
+    } catch (e, s) {
+      print("Error handling widget buzz: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Fehler beim Öffnen der Türe: $e $s"),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> readNFC() async {
@@ -96,9 +160,15 @@ class _OpenDoorState extends State<OpenDoor> {
     var result = await hce.invokeMethod<bool>("startHCE");
     if (result == true && this.widget.oidcManager!.currentUser != null) {
       print("Yeah called the method");
-      hce.invokeMethod<bool>("accessToken", {
-        "accessToken": this.widget.oidcManager!.currentUser!.token.idToken,
-      });
+      final user = widget.oidcManager?.currentUser;
+      final idToken = user?.token.idToken;
+
+      if (idToken == null) {
+        print("Error: idToken is null");
+        return;
+      }
+
+      await hce.invokeMethod<bool>("accessToken", {"accessToken": idToken});
     } else {
       print("Nonononono");
     }
@@ -174,9 +244,14 @@ class _OpenDoorState extends State<OpenDoor> {
         Uri.parse(
           "https://airlockng.lab/api/buzz/${buzztype.name}?duration=500",
         ),
-        headers: {"X-Authorization": accessToken!},
+        headers: {"X-Authorization": accessToken ?? ""},
       );
-      printWrapped(response.request!.headers.toString());
+
+      if (response.request != null) {
+        printWrapped(response.request!.headers.toString());
+      } else {
+        print("Response request is null");
+      }
       print('Status: ${response.statusCode}');
       print('Body: ${response.body}');
 
@@ -255,10 +330,9 @@ class _OpenDoorState extends State<OpenDoor> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color:
-                      _isLoading
-                          ? Theme.of(context).dividerColor
-                          : Theme.of(context).colorScheme.primaryContainer,
+                  color: _isLoading
+                      ? Theme.of(context).dividerColor
+                      : Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -287,9 +361,9 @@ class _OpenDoorState extends State<OpenDoor> {
                       strokeWidth: 2,
                       color:
                           Theme.of(context).colorScheme.primary ==
-                                  backgroundColor
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.secondary,
+                              backgroundColor
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.secondary,
                     ),
                   ),
                 ),
@@ -308,10 +382,9 @@ class _OpenDoorState extends State<OpenDoor> {
   }) {
     return Card(
       elevation: 0,
-      color:
-          _isLoading
-              ? Theme.of(context).disabledColor
-              : Theme.of(context).colorScheme.surfaceContainerLow,
+      color: _isLoading
+          ? Theme.of(context).disabledColor
+          : Theme.of(context).colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
@@ -329,10 +402,9 @@ class _OpenDoorState extends State<OpenDoor> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color:
-                      _isLoading
-                          ? Theme.of(context).dividerColor
-                          : Theme.of(context).colorScheme.primaryContainer,
+                  color: _isLoading
+                      ? Theme.of(context).dividerColor
+                      : Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -416,10 +488,12 @@ class _OpenDoorState extends State<OpenDoor> {
                         title: "Außentüre\nöffnen",
                         icon: Icons.door_front_door,
                         onPressed: () => buzz(BuzzType.outer),
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimaryContainer,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimaryContainer,
                       ),
                     ),
                   ),
@@ -433,10 +507,12 @@ class _OpenDoorState extends State<OpenDoor> {
                         title: "Innentüre\nöffnen",
                         icon: Icons.door_back_door,
                         onPressed: () => buzz(BuzzType.inner),
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onSecondaryContainer,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.secondaryContainer,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onSecondaryContainer,
                       ),
                     ),
                   ),

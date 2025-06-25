@@ -42,6 +42,7 @@
           ];
           includeNDK = true;
           ndkVersions = [ "25.1.8937393" ];
+          cmakeVersions = [ "3.22.1" ];
         };
         androidSdk = androidComposition.androidsdk;
       in
@@ -57,6 +58,7 @@
               androidSdk
               jdk17
               androidComposition.platform-tools
+              cmake
             ];
           };
       }

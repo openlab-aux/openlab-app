@@ -15,6 +15,13 @@ import 'package:openlabflutter/strichliste.dart';
 import 'package:openlabflutter/theme.dart';
 import 'package:path_provider/path_provider.dart';
 
+const airlockClientId = 'RX1Tts6xiTxS0jMcYvTTBTKejHQpCKwWyoQwF8JC';
+const airlockWellKnownUrl =
+    "https://auth.openlab-augsburg.de/application/o/airlock/.well-known/openid-configuration";
+
+const airlockRedirectUrl = 'de.openlab.openlabflutter:/oauth2redirect';
+const String airlockLogoutUrl = 'de.openlab.openlabflutter:/logout';
+
 void main() async {
   // WidgetsFlutterBinding.ensureInitialized();
 
@@ -76,31 +83,50 @@ class _MainWidgetState extends State<MainWidget> {
   int _selectedIndex = 0;
 
   final store = OidcDefaultStore();
-  OidcUserManager? manager;
+  OidcUserManager? airlockOidcManager;
+  OidcUserManager? presenceOidcManager;
   @override
   void initState() {
     super.initState();
-    manager = OidcUserManager.lazy(
-      discoveryDocumentUri: Uri.parse(wellKnownUrl),
+    initOidc();
+  }
+
+  Future<void> initOidc() async {
+    if (airlockOidcManager != null && airlockOidcManager!.didInit) return;
+
+    final manager = OidcUserManager.lazy(
+      discoveryDocumentUri: Uri.parse(airlockWellKnownUrl),
       clientCredentials: const OidcClientAuthentication.none(
-        // Use OidcClientAuthentication.none
-        clientId: clientId, // Pass your clientId here
+        clientId: airlockClientId,
       ),
       store: store,
       settings: OidcUserManagerSettings(
-        //get any available port
-        redirectUri: Uri.parse(redirect),
-        postLogoutRedirectUri: Uri.parse(logout),
+        redirectUri: Uri.parse(airlockRedirectUrl),
+        postLogoutRedirectUri: Uri.parse(airlockLogoutUrl),
         scope: ['openid', 'profile', 'email', 'groups'],
         supportOfflineAuth: true,
       ),
     );
+
+    try {
+      await manager.init(); // ❗ Required
+      airlockOidcManager = manager;
+      print("OIDC manager initialized.");
+    } catch (e, st) {
+      print("OIDC manager init failed: $e");
+      print(st);
+    }
   }
 
   Future<String?> getAccessToken() async {
-    if (manager == null) return null;
-    String? accessToken = await loginOIDC();
+    await initOidc();
 
+    if (airlockOidcManager == null || !airlockOidcManager!.didInit) {
+      print("OIDC manager not ready");
+      return null;
+    }
+
+    String? accessToken = await loginOIDC();
     if (accessToken != null && accessToken.isNotEmpty) {
       DateTime expirationDate = JwtDecoder.getExpirationDate(accessToken);
       hce.invokeMethod<bool>("accessToken", {
@@ -116,8 +142,15 @@ class _MainWidgetState extends State<MainWidget> {
   }
 
   Future<String?> loginAuthorizationCodeFlow() async {
-    if (manager == null) return null;
-    final OidcUser? user = await manager!.loginAuthorizationCodeFlow();
+    await initOidc(); // Ensure fully initialized
+
+    if (airlockOidcManager == null) {
+      print("airlockOidcManager is still null after init");
+      return null;
+    }
+
+    final OidcUser? user = await airlockOidcManager!
+        .loginAuthorizationCodeFlow();
     if (user != null) {
       return user.token.idToken;
     } else {
@@ -127,30 +160,28 @@ class _MainWidgetState extends State<MainWidget> {
   }
 
   Future<String?> loginOIDC() async {
-    if (manager == null) return null;
-    print("Trying oidc login on Android");
-    if (!manager!.didInit) {
-      await manager!.init();
+    await initOidc();
+
+    if (airlockOidcManager == null || !airlockOidcManager!.didInit) {
+      print("OIDC manager not ready");
+      return null;
     }
 
     try {
-      // Check if user is already logged in
-      if (manager!.currentUser != null &&
-          manager!.currentUser!.token.idToken != null) {
-        // Check if token is expired based on expiration time
-        //
-        DateTime expirationDate = JwtDecoder.getExpirationDate(
-          manager!.currentUser!.token.idToken!,
+      if (airlockOidcManager!.currentUser != null &&
+          airlockOidcManager!.currentUser!.token.idToken != null) {
+        final expirationDate = JwtDecoder.getExpirationDate(
+          airlockOidcManager!.currentUser!.token.idToken!,
         );
+
         if (expirationDate.compareTo(DateTime.now()) >= 0) {
           print("User already logged in with valid token");
-          return manager!.currentUser!.token.idToken;
+          return airlockOidcManager!.currentUser!.token.idToken;
         }
 
-        // Token is expired, try refreshing
         print("Token expired, attempting refresh");
         try {
-          final refreshedUser = await manager!.refreshToken();
+          final refreshedUser = await airlockOidcManager!.refreshToken();
           if (refreshedUser != null) {
             print("Token refreshed successfully");
             return refreshedUser.token.idToken;
@@ -159,10 +190,11 @@ class _MainWidgetState extends State<MainWidget> {
             return loginAuthorizationCodeFlow();
           }
         } catch (e) {
-          print("Token refresh failed: $e");
+          print("Token refresh error: $e");
+          return loginAuthorizationCodeFlow();
         }
       } else {
-        print("Loging in user");
+        print("Logging in user");
         return loginAuthorizationCodeFlow();
       }
     } catch (e, stackTrace) {
@@ -170,7 +202,6 @@ class _MainWidgetState extends State<MainWidget> {
       print("Stack trace: $stackTrace");
       return null;
     }
-    return null;
   }
 
   @override
@@ -178,10 +209,16 @@ class _MainWidgetState extends State<MainWidget> {
     Widget widget;
     switch (_selectedIndex) {
       case 0:
-        widget = OpenDoor(oidcManager: manager, getAccessToken: getAccessToken);
+        widget = OpenDoor(
+          oidcManager: airlockOidcManager,
+          getAccessToken: getAccessToken,
+        );
         break;
       case 1:
-        widget = Presence(oidcManager: manager, getAccessToken: getAccessToken);
+        widget = Presence(
+          oidcManager: airlockOidcManager,
+          getAccessToken: getAccessToken,
+        );
         break;
       case 2:
         widget = Strichliste();
@@ -200,7 +237,10 @@ class _MainWidgetState extends State<MainWidget> {
           icalUrl: 'https://www.openlab-augsburg.de/calendar/ical',
         );
       default:
-        widget = OpenDoor(oidcManager: manager, getAccessToken: getAccessToken);
+        widget = OpenDoor(
+          oidcManager: airlockOidcManager,
+          getAccessToken: getAccessToken,
+        );
     }
 
     return Scaffold(

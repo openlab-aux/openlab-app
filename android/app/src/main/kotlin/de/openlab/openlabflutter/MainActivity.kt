@@ -2,6 +2,8 @@ package de.openlab.openlabflutter
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
@@ -13,14 +15,20 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : FlutterActivity() {
-
     private lateinit var channel: MethodChannel
     private val TAG = "MainActivity"
+    private var pendingBuzzType: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (intent.hasExtra("hce")) {
             onHCEResult(intent)
+        }
+
+        // Store the buzz_type for later processing
+        pendingBuzzType = intent?.getStringExtra("buzz_type")
+        if (pendingBuzzType != null) {
+            Log.i(TAG, "Widget intent received in onCreate with buzz_type: $pendingBuzzType")
         }
     }
 
@@ -61,8 +69,67 @@ class MainActivity : FlutterActivity() {
                         result.error("ARGUMENT_ERROR", "Missing required arguments", null)
                     }
                 }
+                "getBuzzType" -> {
+                    val buzzType = intent?.getStringExtra("buzz_type") ?: pendingBuzzType
+                    if (buzzType != null) {
+                        result.success(buzzType)
+                        // Clear the intent extra and pending buzz type to avoid repeated calls
+                        intent?.removeExtra("buzz_type")
+                        pendingBuzzType = null
+                        Log.i(TAG, "Returned buzz_type: $buzzType")
+                    } else {
+                        result.success(null)
+                    }
+                }
+                "isReady" -> {
+                    // Flutter is ready, process any pending widget intents
+                    processPendingWidgetIntent()
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
+                }
+            }
+        }
+
+        // Give Flutter a moment to initialize, then process widget intent
+        Handler(Looper.getMainLooper()).postDelayed({
+            processPendingWidgetIntent()
+        }, 500)
+    }
+
+    private fun processPendingWidgetIntent() {
+        val buzzType = pendingBuzzType ?: intent?.getStringExtra("buzz_type")
+        if (buzzType != null) {
+            Log.i(TAG, "Processing widget intent with buzz_type: $buzzType")
+            try {
+                channel.invokeMethod("widgetBuzz", mapOf("type" to buzzType))
+                Log.i(TAG, "Successfully invoked widgetBuzz method")
+                // Clear after processing
+                intent?.removeExtra("buzz_type")
+                pendingBuzzType = null
+            } catch (e: Exception) {
+                Log.e(TAG, "Error invoking widgetBuzz method", e)
+                // Don't clear pendingBuzzType if there was an error, so we can retry
+            }
+        } else {
+            Log.d(TAG, "No pending widget intent to process")
+        }
+    }
+
+    private fun handleWidgetIntent(intent: Intent?) {
+        intent?.getStringExtra("buzz_type")?.let { buzzType ->
+            Log.i(TAG, "Widget intent received with buzz_type: $buzzType")
+            pendingBuzzType = buzzType
+
+            // Try to process immediately if channel is available
+            if (::channel.isInitialized) {
+                try {
+                    channel.invokeMethod("widgetBuzz", mapOf("type" to buzzType))
+                    pendingBuzzType = null
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error invoking widgetBuzz method", e)
+                    // Keep pendingBuzzType for later processing
                 }
             }
         }
@@ -70,9 +137,11 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent) // Important: Update the activity's intent
         if (intent.hasExtra("hce")) {
             onHCEResult(intent)
         }
+        handleWidgetIntent(intent)
     }
 
     private fun onHCEResult(intent: Intent) {
