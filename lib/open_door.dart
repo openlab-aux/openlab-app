@@ -1,21 +1,12 @@
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
-import 'package:oidc_default_store/oidc_default_store.dart';
-import 'package:openlabflutter/main.dart';
-import 'dart:io' show Platform;
+import 'package:openlabflutter/platform_helper.dart';
 import 'package:retry/retry.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
-import 'package:ndef/ndef.dart' as ndef;
-import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:oidc/oidc.dart';
-import 'package:oidc_core/oidc_core.dart';
-import 'package:http/io_client.dart';
 
 const hce = MethodChannel("hce");
 
@@ -35,17 +26,6 @@ class _OpenDoorState extends State<OpenDoor> {
   bool _isLoading = false;
   bool innerDoorLoading = false;
   bool outerDoorLoading = false;
-
-  http.Client createHttpClient() {
-    final httpClient = HttpClient();
-    // Disable certificate verification
-    httpClient.badCertificateCallback =
-        (X509Certificate cert, String host, int port) {
-          return true; // Accept all certificates
-        };
-
-    return IOClient(httpClient);
-  }
 
   Future<String?> getAccessToken() async {
     return await widget.getAccessToken(widget.oidcManager);
@@ -182,7 +162,7 @@ class _OpenDoorState extends State<OpenDoor> {
     }
 
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (getPlatformHelper().isMobile()) {
         await retry(() async {
           await WiFiForIoTPlugin.setEnabled(true, shouldOpenSettings: false);
           print(await WiFiForIoTPlugin.isEnabled());
@@ -192,7 +172,7 @@ class _OpenDoorState extends State<OpenDoor> {
             security: NetworkSecurity.WPA,
             withInternet: false,
             timeoutInSeconds: 10,
-            joinOnce: (Platform.isIOS) ? false : true,
+            joinOnce: getPlatformHelper().isIOS(),
           );
           print(await WiFiForIoTPlugin.isConnected());
           await WiFiForIoTPlugin.forceWifiUsage(true);
@@ -234,7 +214,7 @@ class _OpenDoorState extends State<OpenDoor> {
     setState(() {
       _isLoading = true;
     });
-    final client = createHttpClient();
+    final client = getPlatformHelper().createHttpClient();
     String? accessToken = await getAccessToken();
     print("https://airlockng.lab/api/buzz/${buzztype.name}?duration=500");
     printWrapped(accessToken ?? "");

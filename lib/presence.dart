@@ -1,14 +1,9 @@
-import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:oidc/oidc.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:duration_picker/duration_picker.dart';
-import 'package:direct_select/direct_select.dart';
-import 'package:oidc_core/oidc_core.dart';
 
 class PresenceResponse {
   final Map<String, DateTime> users;

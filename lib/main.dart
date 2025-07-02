@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:network_tools_flutter/network_tools_flutter.dart';
 import 'package:oidc/oidc.dart';
 import 'package:oidc_default_store/oidc_default_store.dart';
 import 'package:openlabflutter/calendar.dart';
@@ -9,11 +8,9 @@ import 'package:openlabflutter/open_door.dart';
 import 'package:openlabflutter/presence.dart';
 import 'package:openlabflutter/projects.dart';
 import 'package:openlabflutter/settings.dart';
-import 'dart:typed_data';
 
 import 'package:openlabflutter/strichliste.dart';
 import 'package:openlabflutter/theme.dart';
-import 'package:path_provider/path_provider.dart';
 
 const airlockClientId = 'RX1Tts6xiTxS0jMcYvTTBTKejHQpCKwWyoQwF8JC';
 const airlockWellKnownUrl =
@@ -51,9 +48,6 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  await configureNetworkToolsFlutter(
-    (await getApplicationDocumentsDirectory()).path,
-  );
   runApp(const Openlab());
 }
 

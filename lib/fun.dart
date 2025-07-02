@@ -1,12 +1,11 @@
-import 'dart:io';
 import 'dart:convert';
-import 'dart:developer' as developer; // Import for logging
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:udp/udp.dart';
+import 'package:openlabflutter/platform_helper.dart';
 import 'package:http/http.dart' as http;
-import 'package:network_tools/network_tools.dart'; // Retained for network scanning
 import 'package:dart_ping/dart_ping.dart'; // Retained for pinging
+
+import 'dart:developer' as developer; // Import for logging
 
 class FunWidget extends StatefulWidget {
   const FunWidget({super.key}); // Added key parameter
@@ -38,8 +37,9 @@ class _FunWidgetState extends State<FunWidget> {
   TextEditingController pingHostController = TextEditingController();
   String pingResult = '';
   bool isPinging = false;
-  List<ActiveHost> arpResults = [];
   bool isScanning = false;
+
+  List<ActiveHost> arpResults = [];
 
   final List<String> httpMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 
@@ -64,25 +64,6 @@ class _FunWidgetState extends State<FunWidget> {
     requestBodyController.dispose();
     pingHostController.dispose();
     super.dispose();
-  }
-
-  void dummrumleuchte() async {
-    try {
-      var sender = await UDP.bind(Endpoint.any(port: Port.any));
-      var dataLength = await sender.send(
-        "blink".codeUnits,
-        Endpoint.unicast(
-          (await InternetAddress.lookup("NODE-F4C64E.lab")).first,
-          port: const Port(5000),
-        ),
-      );
-      sender.close();
-      developer.log(
-        "Gesendet: 'blink' an NODE-F4C64E.lab:5000, $dataLength Bytes",
-      );
-    } catch (e) {
-      developer.log("Fehler beim Senden der UDP-Nachricht: $e");
-    }
   }
 
   void sendFlipdotText() async {
@@ -251,20 +232,18 @@ class _FunWidgetState extends State<FunWidget> {
           response = await http.post(
             uri,
             headers: headers,
-            body:
-                requestBodyController.text.isNotEmpty
-                    ? requestBodyController.text
-                    : null,
+            body: requestBodyController.text.isNotEmpty
+                ? requestBodyController.text
+                : null,
           );
           break;
         case 'PUT':
           response = await http.put(
             uri,
             headers: headers,
-            body:
-                requestBodyController.text.isNotEmpty
-                    ? requestBodyController.text
-                    : null,
+            body: requestBodyController.text.isNotEmpty
+                ? requestBodyController.text
+                : null,
           );
           break;
         case 'DELETE':
@@ -274,10 +253,9 @@ class _FunWidgetState extends State<FunWidget> {
           response = await http.patch(
             uri,
             headers: headers,
-            body:
-                requestBodyController.text.isNotEmpty
-                    ? requestBodyController.text
-                    : null,
+            body: requestBodyController.text.isNotEmpty
+                ? requestBodyController.text
+                : null,
           );
           break;
         default:
@@ -297,10 +275,9 @@ class _FunWidgetState extends State<FunWidget> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("HTTP-Anfrage erfolgreich (${response.statusCode})"),
-          backgroundColor:
-              response.statusCode < 400
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.error,
+          backgroundColor: response.statusCode < 400
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -405,79 +382,14 @@ class _FunWidgetState extends State<FunWidget> {
       isScanning = true;
       arpResults.clear();
     });
+    List<ActiveHost> activeHosts = await getPlatformHelper().scanLocalNetwork(
+      context,
+    );
 
-    try {
-      final interface = await NetInterface.localInterface();
-      if (interface == null) {
-        if (!mounted) return;
-        setState(() {
-          isScanning = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              "Keine Netzwerk-Schnittstelle gefunden oder fehlende Berechtigungen.",
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-
-      // Start scanning and update results as they come in
-      final stream = HostScannerService.instance.getAllPingableDevices(
-        interface.networkId,
-        timeoutInSeconds: 5, // Optional: adjust timeout
-      );
-
-      await for (final host in stream) {
-        if (!mounted) return;
-        setState(() {
-          arpResults.add(host);
-        });
-      }
-
-      // Give a small delay to ensure all stream events are processed
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (!mounted) return;
-
-      setState(() {
-        isScanning = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Netzwerk-Scan abgeschlossen (${arpResults.length} Hosts gefunden)",
-          ),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        isScanning = false;
-      });
-
-      String errorMessage = "Netzwerk-Scan fehlgeschlagen: $e. ";
-      if (e.toString().contains("LateInitializationError") ||
-          e.toString().contains("PlatformException")) {
-        errorMessage +=
-            "Dies kann auf fehlende Berechtigungen (z.B. Standort) oder ein Problem mit der Netzwerk-Tools-Bibliothek hindeuten. Bitte stellen Sie sicher, dass alle erforderlichen Berechtigungen erteilt wurden und führen Sie 'flutter clean' sowie 'flutter pub get' aus.";
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    setState(() {
+      isScanning = false;
+      arpResults = activeHosts;
+    });
   }
 
   void _showQueueBottomSheet(List queue, int length) {
@@ -485,214 +397,194 @@ class _FunWidgetState extends State<FunWidget> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder:
-          (context) => Container(
-            height: MediaQuery.of(context).size.height * 0.7,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-            child: Column(
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.queue_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 28,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.queue_outlined,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Flipdot-Warteschlange",
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              "$length ${length == 1 ? 'Eintrag' : 'Einträge'} in der Warteschlange",
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.copyWith(
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Flipdot-Warteschlange",
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          "$length ${length == 1 ? 'Eintrag' : 'Einträge'} in der Warteschlange",
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
-                            ),
-                          ],
                         ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close),
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child:
-                      queue.isEmpty
-                          ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.inbox_outlined,
-                                  size: 64,
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: queue.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.inbox_outlined,
+                            size: 64,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "Warteschlange ist leer",
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          Text(
+                            "Keine Nachrichten zum Anzeigen",
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
                                   color: Theme.of(context)
                                       .colorScheme
                                       .onSurfaceVariant
-                                      .withOpacity(0.6),
+                                      .withOpacity(0.7),
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  "Warteschlange ist leer",
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium?.copyWith(
-                                    color:
-                                        Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                Text(
-                                  "Keine Nachrichten zum Anzeigen",
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant
-                                        .withOpacity(0.7),
-                                  ),
-                                ),
-                              ],
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      itemCount: queue.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = queue[index];
+                        return Card(
+                          elevation: 0,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerLow,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withOpacity(0.2),
                             ),
-                          )
-                          : ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            itemCount: queue.length,
-                            separatorBuilder:
-                                (context, index) => const SizedBox(height: 8),
-                            itemBuilder: (context, index) {
-                              final item = queue[index];
-                              return Card(
-                                elevation: 0,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainerLow,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
                                     color: Theme.of(
                                       context,
-                                    ).colorScheme.outline.withOpacity(0.2),
+                                    ).colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    "#${item['id']}",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimaryContainer,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              Theme.of(
-                                                context,
-                                              ).colorScheme.primaryContainer,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          "#${item['id']}",
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.labelSmall?.copyWith(
-                                            color:
-                                                Theme.of(context)
-                                                    .colorScheme
-                                                    .onPrimaryContainer,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                      Text(
+                                        item['text'],
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyLarge,
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item['text'],
-                                              style:
-                                                  Theme.of(
-                                                    context,
-                                                  ).textTheme.bodyLarge,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              "Position ${index + 1} von $length",
-                                              style: Theme.of(
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Position ${index + 1} von $length",
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
                                                 context,
-                                              ).textTheme.bodySmall?.copyWith(
-                                                color:
-                                                    Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                              ),
+                                              ).colorScheme.onSurfaceVariant,
                                             ),
-                                          ],
-                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              );
-                            },
+                              ],
+                            ),
                           ),
-                ),
-              ],
+                        );
+                      },
+                    ),
             ),
-          ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -730,8 +622,9 @@ class _FunWidgetState extends State<FunWidget> {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: FilledButton(
-                    onPressed:
-                        flipdotText.isNotEmpty ? () => sendFlipdotText() : null,
+                    onPressed: flipdotText.isNotEmpty
+                        ? () => sendFlipdotText()
+                        : null,
                     child: const Text("An Flipdot-Warteschlange senden"),
                   ),
                 ),
@@ -748,7 +641,7 @@ class _FunWidgetState extends State<FunWidget> {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: FilledButton.tonal(
-                onPressed: () => dummrumleuchte(),
+                onPressed: () => getPlatformHelper().dummrumleuchte(),
                 child: const Text("Dummrumleuchte aktivieren"),
               ),
             ),
@@ -768,13 +661,12 @@ class _FunWidgetState extends State<FunWidget> {
                           border: OutlineInputBorder(),
                           label: Text("HTTP Methode"),
                         ),
-                        items:
-                            httpMethods.map((String method) {
-                              return DropdownMenuItem<String>(
-                                value: method,
-                                child: Text(method),
-                              );
-                            }).toList(),
+                        items: httpMethods.map((String method) {
+                          return DropdownMenuItem<String>(
+                            value: method,
+                            child: Text(method),
+                          );
+                        }).toList(),
                         onChanged: (String? value) {
                           if (value != null) {
                             setState(() {
@@ -856,18 +748,16 @@ class _FunWidgetState extends State<FunWidget> {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: FilledButton.icon(
-                    onPressed:
-                        isLoading || urlController.text.isEmpty
-                            ? null
-                            : () => sendHttpRequest(),
-                    icon:
-                        isLoading
-                            ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                            : Icon(Icons.send),
+                    onPressed: isLoading || urlController.text.isEmpty
+                        ? null
+                        : () => sendHttpRequest(),
+                    icon: isLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(Icons.send),
                     label: Text(
                       isLoading ? "Wird gesendet..." : "Anfrage senden",
                     ),
@@ -888,8 +778,9 @@ class _FunWidgetState extends State<FunWidget> {
                                 SizedBox(width: 8),
                                 Text(
                                   "Antwort",
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 Spacer(),
                                 IconButton(
@@ -962,18 +853,16 @@ class _FunWidgetState extends State<FunWidget> {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: FilledButton.icon(
-                    onPressed:
-                        isPinging || pingHostController.text.isEmpty
-                            ? null
-                            : () => pingHost(),
-                    icon:
-                        isPinging
-                            ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                            : const Icon(Icons.network_ping),
+                    onPressed: isPinging || pingHostController.text.isEmpty
+                        ? null
+                        : () => pingHost(),
+                    icon: isPinging
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.network_ping),
                     label: Text(isPinging ? "Pinge..." : "Ping starten"),
                   ),
                 ),
@@ -992,8 +881,9 @@ class _FunWidgetState extends State<FunWidget> {
                                 const SizedBox(width: 8),
                                 Text(
                                   "Ping-Ergebnis",
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 const Spacer(),
                                 IconButton(
@@ -1053,14 +943,13 @@ class _FunWidgetState extends State<FunWidget> {
                   padding: const EdgeInsets.all(8.0),
                   child: FilledButton.icon(
                     onPressed: isScanning ? null : () => scanLocalNetwork(),
-                    icon:
-                        isScanning
-                            ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                            : const Icon(Icons.wifi_find),
+                    icon: isScanning
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi_find),
                     label: Text(
                       isScanning ? "Scanne Netzwerk..." : "Netzwerk scannen",
                     ),
@@ -1081,8 +970,9 @@ class _FunWidgetState extends State<FunWidget> {
                                 const SizedBox(width: 8),
                                 Text(
                                   "Gefundene Geräte (${arpResults.length})",
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 const Spacer(),
                                 IconButton(
@@ -1113,21 +1003,8 @@ class _FunWidgetState extends State<FunWidget> {
                                         Icons.laptop,
                                       ), // Or a more generic device icon
                                       title: Text(host.address),
-                                      subtitle: FutureBuilder<String?>(
-                                        future:
-                                            host.getMacAddress(), // Call the async function
-                                        builder: (context, snapshot) {
-                                          if (snapshot.connectionState ==
-                                              ConnectionState.waiting) {
-                                            return const Text('Lade MAC...');
-                                          } else if (snapshot.hasError) {
-                                            return Text(
-                                              'Fehler: ${snapshot.error}',
-                                            );
-                                          } else {
-                                            return Text(snapshot.data ?? 'N/A');
-                                          }
-                                        },
+                                      subtitle: Text(
+                                        host.macAddress ?? "MAC nicht gefunden",
                                       ),
                                       dense: true,
                                     );

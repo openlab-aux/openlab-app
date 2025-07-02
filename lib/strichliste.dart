@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
@@ -427,19 +425,17 @@ class _StrichlisteState extends State<Strichliste> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color:
-                    transaction.amount < 0
-                        ? Theme.of(context).colorScheme.errorContainer
-                        : Theme.of(context).colorScheme.primaryContainer,
+                color: transaction.amount < 0
+                    ? Theme.of(context).colorScheme.errorContainer
+                    : Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 "${(transaction.amount / 100).toStringAsFixed(2)}€",
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color:
-                      transaction.amount < 0
-                          ? Theme.of(context).colorScheme.onErrorContainer
-                          : Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: transaction.amount < 0
+                      ? Theme.of(context).colorScheme.onErrorContainer
+                      : Theme.of(context).colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -593,8 +589,9 @@ class _StrichlisteState extends State<Strichliste> {
                       child: Text(
                         "Halte dein Smartphone an den NFC Tag um eine Buchung durchzuführen",
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onPrimaryContainer,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
                         ),
                       ),
                     ),
@@ -629,23 +626,17 @@ class _StrichlisteState extends State<Strichliste> {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color:
-                          user!["balance"] >= 0
-                              ? Theme.of(context).colorScheme.primaryContainer
-                              : Theme.of(context).colorScheme.errorContainer,
+                      color: user!["balance"] >= 0
+                          ? Theme.of(context).colorScheme.primaryContainer
+                          : Theme.of(context).colorScheme.errorContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       "${(user!["balance"] / 100).toString()}€",
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color:
-                            user!["balance"] >= 0
-                                ? Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer
-                                : Theme.of(
-                                  context,
-                                ).colorScheme.onErrorContainer,
+                        color: user!["balance"] >= 0
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).colorScheme.onErrorContainer,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -668,12 +659,11 @@ class _StrichlisteState extends State<Strichliste> {
               if (user != null) {
                 await Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder:
-                        (context) => StrichlisteAdd(
-                          userId: user!["id"],
-                          users: users,
-                          type: StrichlisteAddType.Send,
-                        ),
+                    builder: (context) => StrichlisteAdd(
+                      userId: user!["id"],
+                      users: users,
+                      type: StrichlisteAddType.Send,
+                    ),
                   ),
                 );
                 _refreshController.requestRefresh();
@@ -766,12 +756,11 @@ class _StrichlisteState extends State<Strichliste> {
               if (user != null) {
                 await Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder:
-                        (context) => StrichlisteAdd(
-                          userId: user!["id"],
-                          users: users,
-                          type: StrichlisteAddType.Topup,
-                        ),
+                    builder: (context) => StrichlisteAdd(
+                      userId: user!["id"],
+                      users: users,
+                      type: StrichlisteAddType.Topup,
+                    ),
                   ),
                 );
                 _refreshController.requestRefresh();
@@ -803,12 +792,11 @@ class _StrichlisteState extends State<Strichliste> {
               if (user != null) {
                 await Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder:
-                        (context) => StrichlisteAdd(
-                          userId: user!["id"],
-                          users: users,
-                          type: StrichlisteAddType.Buy,
-                        ),
+                    builder: (context) => StrichlisteAdd(
+                      userId: user!["id"],
+                      users: users,
+                      type: StrichlisteAddType.Buy,
+                    ),
                   ),
                 );
                 _refreshController.requestRefresh();
