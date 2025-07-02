@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- OpenLab Theme Colors -->
+  <color name="widget_primary_blue">#FF1E3A8A</color>
+  <color name="widget_secondary_blue">#FF3B82F6</color>
+  <color name="widget_accent_orange">#FFEA580C</color>
+  <color name="widget_light_gray">#FFF8FAFC</color>
+  <color name="widget_medium_gray">#FF64748B</color>
+  <color name="widget_dark_gray">#FF1E293B</color>
+  <color name="widget_white">#FFFFFFFF</color>
+  <!-- Widget Specific Colors -->
+  <color name="widget_text_primary">@color/widget_white</color>
+  <color name="widget_text_secondary">@color/widget_white</color>
+  <color name="widget_background">#80000000</color>
+</resources>
