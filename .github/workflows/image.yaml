@@ -1,0 +1,36 @@
+name: Push to Dockerhub
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  push-to-dockerhub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          version_number=$(cat version.yml | sed 's/\(---\|major: \|minor: \|patch: \|\)//g' | sed -z 's/\n/./g;s/,$/\n/' | sed 's/^\.//g' | sed 's/\.$//g' )
+          echo "${version_number}"
+          echo "version_number=${version_number}" >> $GITHUB_ENV
+          echo "${{ env.version_number }}"
+      - run: |
+          version_code=$(cat pubspec.yaml | grep "version:" | sed 's/version:.*+//g')
+          echo "version_code=${version_code}" >> $GITHUB_ENV
+          echo "${{ env.version_code }}"
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./Dockerfile.web
+          push: true
+          tags: ghcr.io/openlab-aux/openlab-app:${{ env.version_number }},ghcr.io/y0ngg4n/kifferkarte:latest
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
