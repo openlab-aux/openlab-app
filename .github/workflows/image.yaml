@@ -31,6 +31,7 @@ jobs:
         with:
           file: ./Dockerfile.web
           push: true
+          platforms: linux/amd64, linux/arm64
           tags: ghcr.io/openlab-aux/openlab-app:${{ env.version_number }},ghcr.io/openlab-aux/openlab-app:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
