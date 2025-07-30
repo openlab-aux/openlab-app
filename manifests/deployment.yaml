@@ -17,5 +17,5 @@ spec:
     spec:
       containers:
         - image: ghcr.io/openlab-aux/openlab-app:latest
-          name: openlab-app-rest
+          name: app-web
 status: {}
